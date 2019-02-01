@@ -174,134 +174,272 @@ inline static const auto disabled = [] {};
 /*******************************************************************************
  ** Example
  *******************************************************************************/
+#include "units.h"
 #include <chrono>
 #include <cmath>
 
+using namespace units::literals;
+using namespace units::angle;
+using namespace units::angular_velocity;
+using namespace units::acceleration;
+using namespace units::force;
+using namespace units::time;
+using namespace units::math;
+using namespace units::mass;
+using namespace units::velocity;
+using namespace units::length;
+using namespace units::torque;
+
+using mps_sq_t = meters_per_second_squared_t;
+using mps_t = meters_per_second_t;
+using kilogram_meters_squared_t = decltype(1.0_kg * 1.0_sq_m);
+using radians_per_second_squared_t = decltype(1.0_rad / 1.0_s / 1.0_s);
+
+template <typename T> struct tensor {
+  T x, y;
+  tensor operator+(const tensor &other) { return {x + other.x, y + other.y}; }
+};
 // Commands
-
-struct PressRightKey {
-  static constexpr auto acceleration = 1.0f;
+struct ActivateMainThruster {
+  static constexpr newton_t thrust = 1.0_N;
 };
 
-struct ReleaseRightKey {
-  static constexpr auto acceleration = -PressRightKey::acceleration;
+struct DeactivateMainThruster {
+  static constexpr newton_t thrust = -ActivateMainThruster::thrust;
 };
 
-struct PressLeftKey {
-  static constexpr auto acceleration = -PressRightKey::acceleration;
+struct ActivateLeftThruster {
+  static constexpr newton_meter_t torque = 1.0_Nm;
 };
 
-struct ReleaseLeftKey {
-  static constexpr auto acceleration = -PressLeftKey::acceleration;
+struct DeactivateLeftThruster {
+  static constexpr newton_meter_t torque = -ActivateLeftThruster::torque;
+};
+
+struct ActivateRightThruster {
+  static constexpr newton_meter_t torque = 1.0_Nm;
+};
+
+struct DeactivateRightThruster {
+  static constexpr newton_meter_t torque = -ActivateRightThruster::torque;
 };
 
 struct Tick {
-  std::chrono::milliseconds dt;
+  second_t dt;
 };
 
 // Events
 
-struct PlayerAccelerationChanged {
-  float acc_x, acc_y;
+struct ThrustChanged {
+  newton_t thrust;
 };
 
-struct PlayerMoved {
-  long pos_x, pos_y;
-  float vel_x, vel_y;
+struct TorqueChanged {
+  newton_meter_t torque;
 };
 
-struct PlayerPositionChanged {
-  long pos_x, pos_y;
+struct Moved {
+  tensor<mps_t> velocity;
+  radians_per_second_t angular_velocity;
+  tensor<meter_t> position;
+  radian_t rotation;
 };
 
 // The state of the player
 struct Player {
-
+public:
+  // State
   struct state_type {
-    long pos_x = 10, pos_y = 10;
-    float vel_x = 0.0f, vel_y = 0.0f;
-    float acc_x = 0.0f, acc_y = 0.0f;
+    static constexpr auto initial_inertia = kilogram_meters_squared_t{1.0};
+    kilogram_t mass = 1.0_kg;
+    kilogram_meters_squared_t inertia = initial_inertia;
+    newton_meter_t torque = 0_Nm;
+    newton_t thrust = 0.0_N;
+    radian_t rotation = 0_rad;
+    tensor<mps_t> velocity = {0_mps, 0_mps};
+    radians_per_second_t angular_velocity = 0_rad_per_s;
+    tensor<meter_t> position = {0.0_m, 0.0_m};
   };
 
-  // execute(PressRightKey)
-  static constexpr PlayerAccelerationChanged execute(const state_type &state,
-                                                     const PressRightKey &) {
-    return {state.acc_x + PressRightKey::acceleration, state.acc_y};
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute ActivateMainThruster -> ThrustChanged
+  static constexpr ThrustChanged execute(const state_type &state,
+                                         const ActivateMainThruster &event) {
+    return {state.thrust + ActivateMainThruster::thrust};
   }
 
-  // execute(ReleaseRightKey)
-  static constexpr PlayerAccelerationChanged execute(const state_type &state,
-                                                     const ReleaseRightKey &) {
-    return {state.acc_x + ReleaseRightKey::acceleration, state.acc_y};
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute DeactivateMainThruster -> ThrustChanged
+  static constexpr ThrustChanged execute(const state_type &state,
+                                         const DeactivateMainThruster &event) {
+    return {state.thrust + DeactivateMainThruster::thrust};
   }
 
-  // execute(PressLeftKey)
-  static constexpr PlayerAccelerationChanged execute(const state_type &state,
-                                                     const PressLeftKey &) {
-    return {state.acc_x + PressLeftKey::acceleration, state.acc_y};
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute ActivateLeftThruster -> TorqueChanged
+  static constexpr TorqueChanged execute(const state_type &state,
+                                         const ActivateLeftThruster &event) {
+    return {state.torque + ActivateLeftThruster::torque};
   }
 
-  // execute(ReleaseLeftKey)
-  static constexpr PlayerAccelerationChanged execute(const state_type &state,
-                                                     const ReleaseLeftKey &) {
-    return {state.acc_x + ReleaseLeftKey::acceleration, state.acc_y};
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute DeactivateLeftThruster -> TorqueChanged
+  static constexpr TorqueChanged execute(const state_type &state,
+                                         const DeactivateLeftThruster &event) {
+    return {state.torque + DeactivateLeftThruster::torque};
   }
 
-  // execute(Tick)
-  static constexpr PlayerMoved execute(const state_type &state,
-                                       const Tick &event) {
-    const auto dt = event.dt.count();
-    const auto pos_x = state.pos_x + lround(state.vel_x * dt);
-    const auto pos_y = state.pos_y + lround(state.vel_y * dt);
-    const auto vel_x = state.vel_x + state.acc_x * dt;
-    const auto vel_y = state.vel_y + state.acc_y * dt;
-    return {pos_x, pos_y, vel_x, vel_y};
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute ActivateRightThruster -> TorqueChanged
+  static constexpr TorqueChanged execute(const state_type &state,
+                                         const ActivateRightThruster &event) {
+    return {state.torque + ActivateRightThruster::torque};
   }
 
-  // apply(PlayerAccelerationChanged)
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute DeactivateRightThruster -> TorqueChanged
+  static constexpr TorqueChanged execute(const state_type &state,
+                                         const DeactivateRightThruster &event) {
+    return {state.torque + DeactivateRightThruster::torque};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute Tick -> Moved
+  static constexpr Moved execute(const state_type &state, const Tick &event) {
+    const auto velocity = update_velocity(state, event);
+    const auto angular_velocity = update_angular_velocity(state, event);
+    const auto position = update_position(state, event);
+    const auto rotation = update_rotation(state, event);
+    return {velocity, angular_velocity, position, rotation};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply ThrustChanged
   static constexpr state_type apply(const state_type &state,
-                                    const PlayerAccelerationChanged &event) {
-    return {state.pos_x, state.pos_y, state.vel_x,
-            state.vel_y, event.acc_x, event.acc_y};
+                                    const ThrustChanged &event) {
+    state_type next = state;
+    next.thrust = event.thrust;
+    return next;
   }
 
-  // apply(PlayerMoved)
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply TorqueChanged
   static constexpr state_type apply(const state_type &state,
-                                    const PlayerMoved &event) {
-    return {event.pos_x, event.pos_y, event.vel_x,
-            event.vel_y, state.acc_x, state.acc_y};
+                                    const TorqueChanged &event) {
+    state_type next = state;
+    next.torque = event.torque;
+    return next;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply Moved
+  static constexpr state_type apply(const state_type &state,
+                                    const Moved &event) {
+    state_type next = state;
+    next.velocity = event.velocity;
+    next.angular_velocity = event.angular_velocity;
+    next.position = event.position;
+    next.rotation = event.rotation;
+    return next;
+  }
+
+private:
+  //////////////////////////////////////////////////////////////////////////////
+  // update_velocity
+  static constexpr tensor<mps_t> update_velocity(const state_type &state,
+                                                 const Tick &event) {
+    const mps_t velocity_change_abs = (state.thrust / state.mass) * event.dt;
+    return {state.velocity.x + cos(state.rotation) * velocity_change_abs,
+            state.velocity.y + sin(state.rotation) * velocity_change_abs};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // update_angular_velocity
+  static constexpr radians_per_second_t
+  update_angular_velocity(const state_type &state, const Tick &event) {
+    // TODO: This should be type safe, but idk how to make units understand how
+    // to convert from [N/kg/m] to [rad/s^2]
+    const auto v = (state.torque / state.inertia).to<float>();
+    const radians_per_second_squared_t angular_acc{v};
+    return state.angular_velocity + angular_acc * event.dt;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // update_position
+  static constexpr tensor<meter_t> update_position(const state_type &state,
+                                                   const Tick &event) {
+    return {state.position.x + state.velocity.x * event.dt,
+            state.position.y + state.velocity.y * event.dt};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // update_rotation
+  static constexpr radian_t update_rotation(const state_type &state,
+                                            const Tick &event) {
+    return state.rotation + state.angular_velocity * event.dt;
   }
 };
 
-// The state of the map
-struct Map {
-  static constexpr auto execute = event_sauce::disabled;
+template <typename T>
+std::ostream &operator<<(std::ostream &ost, const tensor<T> &tensor) {
+  ost << "{x=" << tensor.x << ", y=" << tensor.y << "}";
+  return ost;
+}
 
-  struct state_type {
-    long scroll = 0;
-  };
-
-  // apply(PlayerMoved)
-  static constexpr state_type apply(const state_type &state,
-                                    const PlayerMoved &event) {
-    return {event.pos_x};
-  }
-};
+std::ostream &operator<<(std::ostream &ost, const Player::state_type &state) {
+  // clang-format off
+  ost << "[ mass="             << state.mass
+      << ", inertia="          << state.inertia
+      << ", torque="           << state.torque
+      << ", thrust="           << state.thrust
+      << ", rotation="         << state.rotation
+      << ", velocity="         << state.velocity
+      << ", angular_velocity=" << state.angular_velocity
+      << ", position="         << state.position
+      << " ]" << std::endl;
+  // clang-format on
+  return ost;
+}
 
 int main() {
   using namespace std::chrono_literals;
-  auto ctx = event_sauce::make_context<Player, Map>();
-  ctx.dispatch(PressRightKey{});
+  auto ctx = event_sauce::make_context<Player>();
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(ActivateMainThruster{});
   ctx.dispatch(Tick{100ms});
-  ctx.dispatch(ReleaseRightKey{});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(ActivateLeftThruster{});
   ctx.dispatch(Tick{100ms});
-  ctx.dispatch(PressLeftKey{});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(DeactivateMainThruster{});
   ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(ActivateMainThruster{});
   ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
+  ctx.dispatch(Tick{100ms});
+  std::cout << ctx.inspect<Player>() << std::endl;
 
-  std::cout << "Player [x=" << ctx.inspect<Player>().pos_x
-            << ", y=" << ctx.inspect<Player>().pos_y << "]\n";
-  std::cout << "Map    [scroll=" << ctx.inspect<Map>().scroll << "]\n";
+  // std::cout << "Player [x=" << ctx.inspect<Player>().pos_x
+  //           << ", y=" << ctx.inspect<Player>().pos_y << "]\n";
 
   return 0;
 }
