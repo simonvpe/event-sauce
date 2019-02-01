@@ -43,6 +43,15 @@ public:
   template <typename... Us> void publish(std::variant<Us...> &&v) {
     std::visit(Visitor(*this), v);
   }
+
+  template <typename... Us> void publish(std::tuple<Us...> &&v) {
+    auto wrap = [this](auto &&evt) {
+      this->publish(evt);
+      return 0;
+    };
+    std::apply([&wrap](auto &&... xs) { return std::make_tuple(wrap(xs)...); },
+               v);
+  }
 };
 } // namespace router_detail
 
@@ -217,7 +226,7 @@ struct DeactivateLeftThruster {
 };
 
 struct ActivateRightThruster {
-  static constexpr newton_meter_t torque = 1.0_Nm;
+  static constexpr newton_meter_t torque = -1.0_Nm;
 };
 
 struct DeactivateRightThruster {
@@ -238,14 +247,19 @@ struct TorqueChanged {
   newton_meter_t torque;
 };
 
-struct Moved {
+struct VelocityChanged {
   tensor<mps_t> velocity;
   radians_per_second_t angular_velocity;
+};
+
+struct PositionChanged {
   tensor<meter_t> position;
   radian_t rotation;
 };
 
-// The state of the player
+/*******************************************************************************
+ ** Player
+ *******************************************************************************/
 struct Player {
 public:
   // State
@@ -304,13 +318,14 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute Tick -> Moved
-  static constexpr Moved execute(const state_type &state, const Tick &event) {
+  // Execute Tick -> VelocityChanged & PositionChanged
+  static constexpr std::tuple<VelocityChanged, PositionChanged>
+  execute(const state_type &state, const Tick &event) {
     const auto velocity = update_velocity(state, event);
     const auto angular_velocity = update_angular_velocity(state, event);
     const auto position = update_position(state, event);
     const auto rotation = update_rotation(state, event);
-    return {velocity, angular_velocity, position, rotation};
+    return {{velocity, angular_velocity}, {position, rotation}};
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -332,12 +347,20 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Apply Moved
+  // Apply VelocityChanged
   static constexpr state_type apply(const state_type &state,
-                                    const Moved &event) {
+                                    const VelocityChanged &event) {
     state_type next = state;
     next.velocity = event.velocity;
     next.angular_velocity = event.angular_velocity;
+    return next;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply PositionChanged
+  static constexpr state_type apply(const state_type &state,
+                                    const PositionChanged &event) {
+    state_type next = state;
     next.position = event.position;
     next.rotation = event.rotation;
     return next;
@@ -380,66 +403,53 @@ private:
   }
 };
 
-template <typename T>
-std::ostream &operator<<(std::ostream &ost, const tensor<T> &tensor) {
-  ost << "{x=" << tensor.x << ", y=" << tensor.y << "}";
-  return ost;
-}
+/*******************************************************************************
+ ** PlayerProjection
+ *******************************************************************************/
+struct PlayerProjection {
+  constexpr static auto execute = event_sauce::disabled;
 
-std::ostream &operator<<(std::ostream &ost, const Player::state_type &state) {
-  // clang-format off
-  ost << "[ mass="             << state.mass
-      << ", inertia="          << state.inertia
-      << ", torque="           << state.torque
-      << ", thrust="           << state.thrust
-      << ", rotation="         << state.rotation
-      << ", velocity="         << state.velocity
-      << ", angular_velocity=" << state.angular_velocity
-      << ", position="         << state.position
-      << " ]" << std::endl;
-  // clang-format on
-  return ost;
-}
+  struct state_type {
+    float x, y;
+    float rotation;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply PositionChanged
+  static state_type apply(const state_type &state,
+                          const PositionChanged &event) {
+    state_type next = state;
+    next.x = event.position.x.to<float>();
+    next.y = event.position.y.to<float>();
+    next.rotation = event.rotation.to<float>();
+
+    std::cout << "x=" << event.position.x << " y=" << event.position.y
+              << " angle=" << event.rotation << std::endl;
+    return next;
+  }
+};
 
 int main() {
   using namespace std::chrono_literals;
-  auto ctx = event_sauce::make_context<Player>();
-  std::cout << ctx.inspect<Player>() << std::endl;
+  auto ctx = event_sauce::make_context<Player, PlayerProjection>();
   ctx.dispatch(ActivateMainThruster{});
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(ActivateLeftThruster{});
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(DeactivateMainThruster{});
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(ActivateMainThruster{});
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
   ctx.dispatch(Tick{100ms});
-  std::cout << ctx.inspect<Player>() << std::endl;
-
-  // std::cout << "Player [x=" << ctx.inspect<Player>().pos_x
-  //           << ", y=" << ctx.inspect<Player>().pos_y << "]\n";
 
   return 0;
 }
