@@ -246,25 +246,19 @@ struct ActivateMainThruster {
   static constexpr newton_t thrust = 1.0_N;
 };
 
-struct DeactivateMainThruster {
-  static constexpr newton_t thrust = -ActivateMainThruster::thrust;
-};
+struct DeactivateMainThruster {};
 
 struct ActivateLeftThruster {
   static constexpr newton_meter_t torque = 1.0_Nm;
 };
 
-struct DeactivateLeftThruster {
-  static constexpr newton_meter_t torque = -ActivateLeftThruster::torque;
-};
+struct DeactivateLeftThruster {};
 
 struct ActivateRightThruster {
   static constexpr newton_meter_t torque = -1.0_Nm;
 };
 
-struct DeactivateRightThruster {
-  static constexpr newton_meter_t torque = -ActivateRightThruster::torque;
-};
+struct DeactivateRightThruster {};
 
 struct Tick {
   second_t dt;
@@ -273,10 +267,13 @@ struct Tick {
 // Events
 
 struct ThrustChanged {
+  bool main_thruster_activated;
   newton_t thrust;
 };
 
 struct TorqueChanged {
+  bool left_thruster_activated;
+  bool right_thruster_activated;
   newton_meter_t torque;
 };
 
@@ -301,54 +298,83 @@ public:
     static constexpr auto initial_inertia = kilogram_meters_squared_t{1.0};
     kilogram_t mass = 1.0_kg;
     kilogram_meters_squared_t inertia = initial_inertia;
-    newton_meter_t torque = 0_Nm;
-    newton_t thrust = 0.0_N;
     radian_t rotation = 0_rad;
     tensor<mps_t> velocity = {0_mps, 0_mps};
     radians_per_second_t angular_velocity = 0_rad_per_s;
     tensor<meter_t> position = {0.0_m, 0.0_m};
+    newton_t thrust = 0_N;
+    newton_meter_t torque = 0_Nm;
+    bool left_thruster_activated = false;
+    bool right_thruster_activated = false;
+    bool main_thruster_activated = false;
   };
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute ActivateMainThruster -> ThrustChanged
-  static constexpr ThrustChanged execute(const state_type &state,
-                                         const ActivateMainThruster &event) {
-    return {state.thrust + ActivateMainThruster::thrust};
+  // Execute ActivateMainThruster -> (ThrustChanged)
+  static constexpr std::variant<std::monostate, ThrustChanged>
+  execute(const state_type &state, const ActivateMainThruster &event) {
+    if (!state.main_thruster_activated) {
+      return ThrustChanged{true, state.thrust + ActivateMainThruster::thrust};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute DeactivateMainThruster -> ThrustChanged
-  static constexpr ThrustChanged execute(const state_type &state,
-                                         const DeactivateMainThruster &event) {
-    return {state.thrust + DeactivateMainThruster::thrust};
+  // Execute DeactivateMainThruster -> (ThrustChanged)
+  static constexpr std::variant<std::monostate, ThrustChanged>
+  execute(const state_type &state, const DeactivateMainThruster &event) {
+    if (state.main_thruster_activated) {
+      return ThrustChanged{false, state.thrust - ActivateMainThruster::thrust};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute ActivateLeftThruster -> TorqueChanged
-  static constexpr TorqueChanged execute(const state_type &state,
-                                         const ActivateLeftThruster &event) {
-    return {state.torque + ActivateLeftThruster::torque};
+  // Execute ActivateLeftThruster -> (TorqueChanged)
+  static constexpr std::variant<std::monostate, TorqueChanged>
+  execute(const state_type &state, const ActivateLeftThruster &event) {
+    if (!state.left_thruster_activated) {
+      const auto right = state.right_thruster_activated;
+      return TorqueChanged{true, right,
+                           state.torque + ActivateLeftThruster::torque};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute DeactivateLeftThruster -> TorqueChanged
-  static constexpr TorqueChanged execute(const state_type &state,
-                                         const DeactivateLeftThruster &event) {
-    return {state.torque + DeactivateLeftThruster::torque};
+  // Execute DeactivateLeftThruster -> (TorqueChanged)
+  static constexpr std::variant<std::monostate, TorqueChanged>
+  execute(const state_type &state, const DeactivateLeftThruster &event) {
+    if (state.left_thruster_activated) {
+      const auto right = state.right_thruster_activated;
+      return TorqueChanged{false, right,
+                           state.torque - ActivateLeftThruster::torque};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute ActivateRightThruster -> TorqueChanged
-  static constexpr TorqueChanged execute(const state_type &state,
-                                         const ActivateRightThruster &event) {
-    return {state.torque + ActivateRightThruster::torque};
+  // Execute ActivateRightThruster -> (TorqueChanged)
+  static constexpr std::variant<std::monostate, TorqueChanged>
+  execute(const state_type &state, const ActivateRightThruster &event) {
+    if (!state.right_thruster_activated) {
+      const auto left = state.left_thruster_activated;
+      return TorqueChanged{left, true,
+                           state.torque + ActivateRightThruster::torque};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute DeactivateRightThruster -> TorqueChanged
-  static constexpr TorqueChanged execute(const state_type &state,
-                                         const DeactivateRightThruster &event) {
-    return {state.torque + DeactivateRightThruster::torque};
+  // Execute DeactivateRightThruster -> (TorqueChanged)
+  static constexpr std::variant<std::monostate, TorqueChanged>
+  execute(const state_type &state, const DeactivateRightThruster &event) {
+    if (state.right_thruster_activated) {
+      const auto left = state.left_thruster_activated;
+      return TorqueChanged{left, false,
+                           state.torque - ActivateRightThruster::torque};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -367,6 +393,7 @@ public:
   static constexpr state_type apply(const state_type &state,
                                     const ThrustChanged &event) {
     state_type next = state;
+    next.main_thruster_activated = event.main_thruster_activated;
     next.thrust = event.thrust;
     return next;
   }
@@ -376,6 +403,8 @@ public:
   static constexpr state_type apply(const state_type &state,
                                     const TorqueChanged &event) {
     state_type next = state;
+    next.left_thruster_activated = event.left_thruster_activated;
+    next.right_thruster_activated = event.right_thruster_activated;
     next.torque = event.torque;
     return next;
   }
@@ -414,8 +443,8 @@ private:
   // update_angular_velocity
   static constexpr radians_per_second_t
   update_angular_velocity(const state_type &state, const Tick &command) {
-    // TODO: This should be type safe, but idk how to make units understand how
-    // to convert from [N/kg/m] to [rad/s^2]
+    // TODO: This should be type safe, but idk how to make units understand
+    // how to convert from [N/kg/m] to [rad/s^2]
     const auto v = (state.torque / state.inertia).to<float>();
     const radians_per_second_squared_t angular_acc{v};
     return state.angular_velocity + angular_acc * command.dt;
@@ -498,7 +527,8 @@ struct Gui {
 int main() {
   using namespace std::chrono_literals;
   Gui gui;
-  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>, ShipDataProjection<Gui>>(gui);
+  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>,
+                                       ShipDataProjection<Gui>>(gui);
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
