@@ -481,32 +481,14 @@ template <typename Gui> struct PlayerProjection {
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
   static void project(Gui &gui, const PositionChanged &event) {
+    static constexpr auto scale_factor = 100.0f;
     auto ship = sf::CircleShape{80.f, 3};
     ship.setOrigin(80.f, 80.f);
     degree_t rotation = event.rotation;
     ship.setRotation(rotation.to<float>());
+    ship.move({event.position.x.to<float>() * scale_factor,
+               event.position.y.to<float>() * scale_factor});
     gui.window.draw(ship);
-  }
-};
-
-/*******************************************************************************
- ** ShipDataProjection
- *******************************************************************************/
-template <typename Gui> struct ShipDataProjection {
-  constexpr static auto execute = event_sauce::disabled;
-  constexpr static auto apply = event_sauce::disabled;
-  struct state_type {};
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Apply VelocityChanged
-  static void project(Gui &gui, const VelocityChanged &event) {
-
-    sf::Text text;
-    text.setString(std::string{"Angular velocity "} +
-                   to_string(event.angular_velocity));
-    text.setCharacterSize(24);
-    text.setFont(gui.font);
-    gui.window.draw(text);
   }
 };
 
@@ -527,8 +509,7 @@ struct Gui {
 int main() {
   using namespace std::chrono_literals;
   Gui gui;
-  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>,
-                                       ShipDataProjection<Gui>>(gui);
+  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>>(gui);
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
