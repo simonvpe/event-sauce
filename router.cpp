@@ -370,8 +370,8 @@ private:
   //////////////////////////////////////////////////////////////////////////////
   // update_velocity
   static constexpr tensor<mps_t> update_velocity(const state_type &state,
-                                                 const Tick &event) {
-    const mps_t velocity_change_abs = (state.thrust / state.mass) * event.dt;
+                                                 const Tick &command) {
+    const mps_t velocity_change_abs = (state.thrust / state.mass) * command.dt;
     return {state.velocity.x + cos(state.rotation) * velocity_change_abs,
             state.velocity.y + sin(state.rotation) * velocity_change_abs};
   }
@@ -379,29 +379,32 @@ private:
   //////////////////////////////////////////////////////////////////////////////
   // update_angular_velocity
   static constexpr radians_per_second_t
-  update_angular_velocity(const state_type &state, const Tick &event) {
+  update_angular_velocity(const state_type &state, const Tick &command) {
     // TODO: This should be type safe, but idk how to make units understand how
     // to convert from [N/kg/m] to [rad/s^2]
     const auto v = (state.torque / state.inertia).to<float>();
     const radians_per_second_squared_t angular_acc{v};
-    return state.angular_velocity + angular_acc * event.dt;
+    return state.angular_velocity + angular_acc * command.dt;
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // update_position
   static constexpr tensor<meter_t> update_position(const state_type &state,
-                                                   const Tick &event) {
-    return {state.position.x + state.velocity.x * event.dt,
-            state.position.y + state.velocity.y * event.dt};
+                                                   const Tick &command) {
+    return {state.position.x + state.velocity.x * command.dt,
+            state.position.y + state.velocity.y * command.dt};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // update_rotation
   static constexpr radian_t update_rotation(const state_type &state,
-                                            const Tick &event) {
-    return state.rotation + state.angular_velocity * event.dt;
+                                            const Tick &command) {
+    return state.rotation + state.angular_velocity * command.dt;
   }
 };
+
+#include <SFML/Graphics.hpp>
+#include <memory>
 
 /*******************************************************************************
  ** PlayerProjection
@@ -410,8 +413,12 @@ struct PlayerProjection {
   constexpr static auto execute = event_sauce::disabled;
 
   struct state_type {
+    state_type() : texture{std::make_shared<sf::RenderTexture>()} {
+      texture->create(500, 500);
+    }
     float x, y;
     float rotation;
+    std::shared_ptr<sf::RenderTexture> texture;
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -422,9 +429,10 @@ struct PlayerProjection {
     next.x = event.position.x.to<float>();
     next.y = event.position.y.to<float>();
     next.rotation = event.rotation.to<float>();
-
-    std::cout << "x=" << event.position.x << " y=" << event.position.y
-              << " angle=" << event.rotation << std::endl;
+    std::cout << "Updated" << std::endl;
+    next.texture->clear();
+    // next.texture->draw(...);
+    next.texture->display();
     return next;
   }
 };
@@ -432,6 +440,7 @@ struct PlayerProjection {
 int main() {
   using namespace std::chrono_literals;
   auto ctx = event_sauce::make_context<Player, PlayerProjection>();
+
   ctx.dispatch(ActivateMainThruster{});
   ctx.dispatch(Tick{100ms});
   ctx.dispatch(ActivateLeftThruster{});
@@ -450,6 +459,58 @@ int main() {
   ctx.dispatch(Tick{100ms});
   ctx.dispatch(Tick{100ms});
   ctx.dispatch(Tick{100ms});
+
+  // create the window
+  sf::RenderWindow window(sf::VideoMode(800, 600), "My window");
+
+  // run the program as long as the window is open
+  sf::Clock clock;
+  while (window.isOpen()) {
+    // check all the window's events that were triggered since the last
+    // iteration of the loop
+    sf::Event event;
+    while (window.pollEvent(event)) {
+      // "close requested" event: we close the window
+      if (event.type == sf::Event::Closed) {
+        window.close();
+      }
+      if (event.type == sf::Event::KeyPressed) {
+        if (event.key.code == sf::Keyboard::Up) {
+          ctx.dispatch(ActivateMainThruster{});
+        }
+        if (event.key.code == sf::Keyboard::Left) {
+          ctx.dispatch(ActivateRightThruster{});
+        }
+        if (event.key.code == sf::Keyboard::Right) {
+          ctx.dispatch(ActivateLeftThruster{});
+        }
+      }
+      if(event.type == sf::Event::KeyReleased) {
+        if (event.key.code == sf::Keyboard::Up) {
+          ctx.dispatch(DeactivateMainThruster{});
+        }
+        if (event.key.code == sf::Keyboard::Left) {
+          ctx.dispatch(DeactivateRightThruster{});
+        }
+        if (event.key.code == sf::Keyboard::Right) {
+          ctx.dispatch(DeactivateLeftThruster{});
+        }
+      }
+    }
+
+    // clear the window with black color
+    window.clear(sf::Color::Black);
+
+    // draw everything here...
+    // window.draw(...);
+
+    // end the current frame
+    window.display();
+
+    const auto elapsed = clock.getElapsedTime();
+    ctx.dispatch(Tick{std::chrono::milliseconds{elapsed.asMilliseconds()}});
+    clock.restart();
+  }
 
   return 0;
 }
