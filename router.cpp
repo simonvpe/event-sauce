@@ -109,6 +109,26 @@ template <typename Aggregate> struct AggregateExecute {
   }
 };
 
+template <typename Aggregate, typename ReadModel> struct AggregateProject {
+  ReadModel &read_model;
+
+  AggregateProject(ReadModel &read_model) : read_model{read_model} {}
+
+  template <typename Event> void operator()(const Event &evt) {
+    (*this)(evt, 0);
+  }
+
+  template <typename Event>
+  auto operator()(const Event &evt, int)
+      -> decltype(Aggregate::project(read_model, evt)) {
+    return Aggregate::project(read_model, evt);
+  }
+
+  template <typename Event> void operator()(const Event &evt, long) {
+    /* Do nothing */
+  }
+};
+
 // utility function to accumulate over a tuple
 template <typename Op, typename Val, typename T, typename... Ts>
 inline auto tuple_accumulate(Op op, Val val, std::tuple<T, Ts...> &&tuple) {
@@ -122,14 +142,19 @@ inline auto tuple_accumulate(Op op, Val val, std::tuple<T, Ts...> &&tuple) {
 }
 
 // binds aggregates and their states and recursively creates a router
-template <typename State, typename Aggregate, typename... Aggregates>
-inline auto bind(State &state, Aggregate &&agg, Aggregates &&... aggs) {
+template <typename State, typename ReadModel, typename Aggregate,
+          typename... Aggregates>
+inline auto bind(State &state, ReadModel &read_model, Aggregate &&agg,
+                 Aggregates &&... aggs) {
 
-  auto bind_aggregate = [&state](auto &&aggregate) {
-    return [&state, aggregate = std::move(aggregate)](auto &&router) {
-      auto &s = std::get<typename decltype(aggregate)::state_type>(state);
-      return router.subscribe(AggregateApply<decltype(aggregate)>{s});
-    };
+  auto bind_aggregate = [&state, &read_model](auto &&aggregate) {
+    return
+        [&state, &read_model, aggregate = std::move(aggregate)](auto &&router) {
+          auto &s = std::get<typename decltype(aggregate)::state_type>(state);
+          return router.subscribe(AggregateApply<decltype(aggregate)>{s})
+              .subscribe(
+                  AggregateProject<decltype(aggregate), ReadModel>{read_model});
+        };
   };
   auto initial = bind_aggregate(std::move(agg))(make_router());
   if constexpr (sizeof...(Aggregates) > 0) {
@@ -142,20 +167,27 @@ inline auto bind(State &state, Aggregate &&agg, Aggregates &&... aggs) {
 }
 
 // the context is the api endpoint that the user of the library interacts with
-template <typename... Aggregates> struct Context {
+template <typename ReadModel, typename... Aggregates> struct Context {
+  using read_model_type = ReadModel;
   using state_type = std::tuple<typename Aggregates::state_type...>;
-  using router_type = decltype(
-      bind(std::declval<state_type &>(), std::declval<Aggregates>()...));
+  using router_type =
+      decltype(bind(std::declval<state_type &>(), std::declval<ReadModel &>(),
+                    std::declval<Aggregates>()...));
 
+  read_model_type read_model;
   state_type state;
   router_type router;
 
-  Context() : state{}, router{bind(state, Aggregates{}...)} {}
+  Context(read_model_type &&read_model)
+      : read_model{std::move(read_model)}, state{}, router{bind(
+                                                        state, read_model,
+                                                        Aggregates{}...)} {}
 
   template <typename Command> void dispatch(const Command &cmd) {
     auto events = std::make_tuple(AggregateExecute<Aggregates>{
         std::get<typename Aggregates::state_type>(state)}(cmd)...);
 
+    // Publish events
     auto wrap = [this](auto &&evt) {
       this->router.publish(std::move(evt));
       return 0;
@@ -173,8 +205,9 @@ template <typename... Aggregates> struct Context {
   }
 };
 
-template <typename... Aggregates> auto make_context() {
-  return Context<Aggregates...>{};
+template <typename... Aggregates, typename ReadModel>
+auto make_context(ReadModel &&read_model) {
+  return Context<ReadModel, Aggregates...>{std::move(read_model)};
 }
 
 inline static const auto disabled = [] {};
@@ -186,6 +219,7 @@ inline static const auto disabled = [] {};
 #include "units.h"
 #include <chrono>
 #include <cmath>
+#include <functional>
 
 using namespace units::literals;
 using namespace units::angle;
@@ -262,6 +296,7 @@ struct PositionChanged {
  *******************************************************************************/
 struct Player {
 public:
+  static constexpr auto project = event_sauce::disabled;
   // State
   struct state_type {
     static constexpr auto initial_inertia = kilogram_meters_squared_t{1.0};
@@ -406,11 +441,16 @@ private:
 #include <SFML/Graphics.hpp>
 #include <memory>
 
+struct ReadModel {
+  void do_stuff() { std::cout << "do_stuff() " << std::endl; }
+};
+
 /*******************************************************************************
  ** PlayerProjection
  *******************************************************************************/
 struct PlayerProjection {
   constexpr static auto execute = event_sauce::disabled;
+  constexpr static auto apply = event_sauce::disabled;
 
   struct state_type {
     state_type() : texture{std::make_shared<sf::RenderTexture>()} {
@@ -423,23 +463,14 @@ struct PlayerProjection {
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static state_type apply(const state_type &state,
-                          const PositionChanged &event) {
-    state_type next = state;
-    next.x = event.position.x.to<float>();
-    next.y = event.position.y.to<float>();
-    next.rotation = event.rotation.to<float>();
-    std::cout << "Updated" << std::endl;
-    next.texture->clear();
-    // next.texture->draw(...);
-    next.texture->display();
-    return next;
+  static void project(ReadModel &model, const PositionChanged &event) {
+    model.do_stuff();
   }
 };
 
 int main() {
   using namespace std::chrono_literals;
-  auto ctx = event_sauce::make_context<Player, PlayerProjection>();
+  auto ctx = event_sauce::make_context<Player, PlayerProjection>(ReadModel{});
 
   ctx.dispatch(ActivateMainThruster{});
   ctx.dispatch(Tick{100ms});
@@ -485,7 +516,7 @@ int main() {
           ctx.dispatch(ActivateLeftThruster{});
         }
       }
-      if(event.type == sf::Event::KeyReleased) {
+      if (event.type == sf::Event::KeyReleased) {
         if (event.key.code == sf::Keyboard::Up) {
           ctx.dispatch(DeactivateMainThruster{});
         }
