@@ -137,7 +137,7 @@ inline auto tuple_accumulate(Op op, Val val, std::tuple<T, Ts...> &&tuple) {
     return next_val;
   } else {
     auto tail = std::make_tuple(std::get<Ts>(tuple)...);
-    return tuple_accumulate(op, next_val, tail);
+    return tuple_accumulate(op, next_val, std::move(tail));
   }
 }
 
@@ -174,14 +174,13 @@ template <typename ReadModel, typename... Aggregates> struct Context {
       decltype(bind(std::declval<state_type &>(), std::declval<ReadModel &>(),
                     std::declval<Aggregates>()...));
 
-  read_model_type read_model;
+  read_model_type &read_model;
   state_type state;
   router_type router;
 
-  Context(read_model_type &&read_model)
-      : read_model{std::move(read_model)}, state{}, router{bind(
-                                                        state, read_model,
-                                                        Aggregates{}...)} {}
+  Context(read_model_type &read_model)
+      : read_model{read_model}, state{}, router{bind(state, read_model,
+                                                     Aggregates{}...)} {}
 
   template <typename Command> void dispatch(const Command &cmd) {
     auto events = std::make_tuple(AggregateExecute<Aggregates>{
@@ -206,8 +205,8 @@ template <typename ReadModel, typename... Aggregates> struct Context {
 };
 
 template <typename... Aggregates, typename ReadModel>
-auto make_context(ReadModel &&read_model) {
-  return Context<ReadModel, Aggregates...>{std::move(read_model)};
+auto make_context(ReadModel &read_model) {
+  return Context<ReadModel, Aggregates...>{read_model};
 }
 
 inline static const auto disabled = [] {};
@@ -355,11 +354,11 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Execute Tick -> VelocityChanged & PositionChanged
   static constexpr std::tuple<VelocityChanged, PositionChanged>
-  execute(const state_type &state, const Tick &event) {
-    const auto velocity = update_velocity(state, event);
-    const auto angular_velocity = update_angular_velocity(state, event);
-    const auto position = update_position(state, event);
-    const auto rotation = update_rotation(state, event);
+  execute(const state_type &state, const Tick &command) {
+    const auto velocity = update_velocity(state, command);
+    const auto angular_velocity = update_angular_velocity(state, command);
+    const auto position = update_position(state, command);
+    const auto rotation = update_rotation(state, command);
     return {{velocity, angular_velocity}, {position, rotation}};
   }
 
@@ -440,70 +439,73 @@ private:
 
 #include <SFML/Graphics.hpp>
 #include <memory>
-
-struct ReadModel {
-  void do_stuff() { std::cout << "do_stuff() " << std::endl; }
-};
+#include <sstream>
 
 /*******************************************************************************
  ** PlayerProjection
  *******************************************************************************/
-struct PlayerProjection {
+template <typename Gui> struct PlayerProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
-
-  struct state_type {
-    state_type() : texture{std::make_shared<sf::RenderTexture>()} {
-      texture->create(500, 500);
-    }
-    float x, y;
-    float rotation;
-    std::shared_ptr<sf::RenderTexture> texture;
-  };
+  struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(ReadModel &model, const PositionChanged &event) {
-    model.do_stuff();
+  static void project(Gui &gui, const PositionChanged &event) {
+    auto ship = sf::CircleShape{80.f, 3};
+    ship.setOrigin(80.f, 80.f);
+    degree_t rotation = event.rotation;
+    ship.setRotation(rotation.to<float>());
+    gui.window.draw(ship);
+  }
+};
+
+/*******************************************************************************
+ ** ShipDataProjection
+ *******************************************************************************/
+template <typename Gui> struct ShipDataProjection {
+  constexpr static auto execute = event_sauce::disabled;
+  constexpr static auto apply = event_sauce::disabled;
+  struct state_type {};
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply VelocityChanged
+  static void project(Gui &gui, const VelocityChanged &event) {
+
+    sf::Text text;
+    text.setString(std::string{"Angular velocity "} +
+                   to_string(event.angular_velocity));
+    text.setCharacterSize(24);
+    text.setFont(gui.font);
+    gui.window.draw(text);
+  }
+};
+
+/*******************************************************************************
+ ** main
+ *******************************************************************************/
+struct Gui {
+  sf::RenderWindow window;
+  sf::Font font;
+  Gui() : window{sf::VideoMode(800, 600), "My window"} {
+    if (!font.loadFromFile("/usr/share/doc/dbus-python/_static/fonts/"
+                           "RobotoSlab/roboto-slab-v7-regular.ttf")) {
+      throw std::runtime_error{"Failed to load fonts!"};
+    }
   }
 };
 
 int main() {
   using namespace std::chrono_literals;
-  auto ctx = event_sauce::make_context<Player, PlayerProjection>(ReadModel{});
+  Gui gui;
+  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>, ShipDataProjection<Gui>>(gui);
 
-  ctx.dispatch(ActivateMainThruster{});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(ActivateLeftThruster{});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(DeactivateMainThruster{});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(ActivateMainThruster{});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-  ctx.dispatch(Tick{100ms});
-
-  // create the window
-  sf::RenderWindow window(sf::VideoMode(800, 600), "My window");
-
-  // run the program as long as the window is open
-  sf::Clock clock;
-  while (window.isOpen()) {
-    // check all the window's events that were triggered since the last
-    // iteration of the loop
+  auto t = std::chrono::high_resolution_clock::now();
+  while (gui.window.isOpen()) {
     sf::Event event;
-    while (window.pollEvent(event)) {
-      // "close requested" event: we close the window
+    while (gui.window.pollEvent(event)) {
       if (event.type == sf::Event::Closed) {
-        window.close();
+        gui.window.close();
       }
       if (event.type == sf::Event::KeyPressed) {
         if (event.key.code == sf::Keyboard::Up) {
@@ -529,18 +531,11 @@ int main() {
       }
     }
 
-    // clear the window with black color
-    window.clear(sf::Color::Black);
-
-    // draw everything here...
-    // window.draw(...);
-
-    // end the current frame
-    window.display();
-
-    const auto elapsed = clock.getElapsedTime();
-    ctx.dispatch(Tick{std::chrono::milliseconds{elapsed.asMilliseconds()}});
-    clock.restart();
+    gui.window.clear(sf::Color::Black);
+    const auto now = std::chrono::high_resolution_clock::now();
+    ctx.dispatch(Tick{now - t});
+    t = now;
+    gui.window.display();
   }
 
   return 0;
