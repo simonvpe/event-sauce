@@ -485,7 +485,7 @@ template <typename Gui> struct PlayerProjection {
     auto ship = sf::CircleShape{80.f, 3};
     ship.setOrigin(80.f, 80.f);
     degree_t rotation = event.rotation;
-    ship.setRotation(rotation.to<float>());
+    ship.setRotation(rotation.to<float>() + 90.0f);
     ship.move({event.position.x.to<float>() * scale_factor,
                event.position.y.to<float>() * scale_factor});
     gui.window.draw(ship);
