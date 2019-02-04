@@ -1,5 +1,6 @@
 #pragma once
 #include "common/units.hpp"
+#include <vector>
 
 template <int Id> struct ActivateMainThruster {
   static constexpr newton_t thrust = 10.0_N;
@@ -18,6 +19,10 @@ template <int Id> struct ActivateRightThruster {
 };
 
 template <int Id> struct DeactivateRightThruster {};
+
+struct CreateMap {
+  std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> edges;
+};
 
 struct Tick {
   second_t dt;
