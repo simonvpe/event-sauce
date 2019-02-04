@@ -14,21 +14,22 @@
 /*******************************************************************************
  ** PlayerProjection
  *******************************************************************************/
-template <typename Gui> struct PlayerProjection {
+template <int Id, typename Gui> struct PlayerProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
   struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const PositionChanged &event) {
+  static void project(Gui &gui, const PositionChanged<Id> &event) {
     static constexpr auto scale_factor = 100.0f;
     auto ship = sf::CircleShape{80.f, 3};
     ship.setOrigin(80.f, 80.f);
     degree_t rotation = event.rotation;
     ship.setRotation(rotation.to<float>() + 90.0f);
-    ship.move({event.position.x.to<float>() * scale_factor,
-               event.position.y.to<float>() * scale_factor});
+    const float x = event.position.x * scale_factor;
+    const float y = event.position.y * scale_factor;
+    ship.move({x, y});
     gui.window.draw(ship);
   }
 };
@@ -40,17 +41,22 @@ struct Gui {
   sf::RenderWindow window;
   sf::Font font;
   Gui() : window{sf::VideoMode(800, 600), "My window"} {
-    if (!font.loadFromFile("/usr/share/doc/dbus-python/_static/fonts/"
-                           "RobotoSlab/roboto-slab-v7-regular.ttf")) {
-      throw std::runtime_error{"Failed to load fonts!"};
-    }
+    // if (!font.loadFromFile("/usr/share/doc/dbus-python/_static/fonts/"
+    //                        "RobotoSlab/roboto-slab-v7-regular.ttf")) {
+    //   throw std::runtime_error{"Failed to load fonts!"};
+    // }
   }
 };
 
 int main() {
   using namespace std::chrono_literals;
+
   Gui gui;
-  auto ctx = event_sauce::make_context<Player<0>, PlayerProjection<Gui>>(gui);
+
+  using Player_0 = Player<0>;
+  using PlayerProjection_0 = PlayerProjection<0, Gui>;
+
+  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0>(gui);
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
@@ -61,24 +67,24 @@ int main() {
       }
       if (event.type == sf::Event::KeyPressed) {
         if (event.key.code == sf::Keyboard::Up) {
-          ctx.dispatch(ActivateMainThruster{});
+          ctx.dispatch(ActivateMainThruster<0>{});
         }
         if (event.key.code == sf::Keyboard::Left) {
-          ctx.dispatch(ActivateRightThruster{});
+          ctx.dispatch(ActivateRightThruster<0>{});
         }
         if (event.key.code == sf::Keyboard::Right) {
-          ctx.dispatch(ActivateLeftThruster{});
+          ctx.dispatch(ActivateLeftThruster<0>{});
         }
       }
       if (event.type == sf::Event::KeyReleased) {
         if (event.key.code == sf::Keyboard::Up) {
-          ctx.dispatch(DeactivateMainThruster{});
+          ctx.dispatch(DeactivateMainThruster<0>{});
         }
         if (event.key.code == sf::Keyboard::Left) {
-          ctx.dispatch(DeactivateRightThruster{});
+          ctx.dispatch(DeactivateRightThruster<0>{});
         }
         if (event.key.code == sf::Keyboard::Right) {
-          ctx.dispatch(DeactivateLeftThruster{});
+          ctx.dispatch(DeactivateLeftThruster<0>{});
         }
       }
     }

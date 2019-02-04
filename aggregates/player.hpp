@@ -1,50 +1,28 @@
 #pragma once
+#include "../commands.hpp"
 #include "../units.hpp"
 #include <tuple>
 #include <variant>
 
-// Commands
-struct ActivateMainThruster {
-  static constexpr newton_t thrust = 1.0_N;
-};
-
-struct DeactivateMainThruster {};
-
-struct ActivateLeftThruster {
-  static constexpr newton_meter_t torque = 1.0_Nm;
-};
-
-struct DeactivateLeftThruster {};
-
-struct ActivateRightThruster {
-  static constexpr newton_meter_t torque = -1.0_Nm;
-};
-
-struct DeactivateRightThruster {};
-
-struct Tick {
-  second_t dt;
-};
-
 // Events
 
-struct ThrustChanged {
+template <int Id> struct ThrustChanged {
   bool main_thruster_activated;
   newton_t thrust;
 };
 
-struct TorqueChanged {
+template <int Id> struct TorqueChanged {
   bool left_thruster_activated;
   bool right_thruster_activated;
   newton_meter_t torque;
 };
 
-struct VelocityChanged {
+template <int Id> struct VelocityChanged {
   tensor<mps_t> velocity;
   radians_per_second_t angular_velocity;
 };
 
-struct PositionChanged {
+template <int Id> struct PositionChanged {
   tensor<meter_t> position;
   radian_t rotation;
 };
@@ -74,75 +52,77 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute ActivateMainThruster -> (ThrustChanged)
-  static constexpr std::variant<std::monostate, ThrustChanged>
-  execute(const state_type &state, const ActivateMainThruster &event) {
+  static constexpr std::variant<std::monostate, ThrustChanged<Id>>
+  execute(const state_type &state, const ActivateMainThruster<Id> &event) {
     if (!state.main_thruster_activated) {
-      return ThrustChanged{true, state.thrust + ActivateMainThruster::thrust};
+      const auto thrust = state.thrust + ActivateMainThruster<Id>::thrust;
+      return ThrustChanged<Id>{true, thrust};
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute DeactivateMainThruster -> (ThrustChanged)
-  static constexpr std::variant<std::monostate, ThrustChanged>
-  execute(const state_type &state, const DeactivateMainThruster &event) {
+  static constexpr std::variant<std::monostate, ThrustChanged<Id>>
+  execute(const state_type &state, const DeactivateMainThruster<Id> &event) {
     if (state.main_thruster_activated) {
-      return ThrustChanged{false, state.thrust - ActivateMainThruster::thrust};
+      const auto thrust = state.thrust - ActivateMainThruster<Id>::thrust;
+      return ThrustChanged<Id>{false, thrust};
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute ActivateLeftThruster -> (TorqueChanged)
-  static constexpr std::variant<std::monostate, TorqueChanged>
-  execute(const state_type &state, const ActivateLeftThruster &event) {
+  static constexpr std::variant<std::monostate, TorqueChanged<Id>>
+  execute(const state_type &state, const ActivateLeftThruster<Id> &event) {
     if (!state.left_thruster_activated) {
       const auto right = state.right_thruster_activated;
-      return TorqueChanged{true, right,
-                           state.torque + ActivateLeftThruster::torque};
+      const auto torque = state.torque + ActivateLeftThruster<Id>::torque;
+      return TorqueChanged<Id>{true, right, torque};
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute DeactivateLeftThruster -> (TorqueChanged)
-  static constexpr std::variant<std::monostate, TorqueChanged>
-  execute(const state_type &state, const DeactivateLeftThruster &event) {
+  static constexpr std::variant<std::monostate, TorqueChanged<Id>>
+  execute(const state_type &state, const DeactivateLeftThruster<Id> &event) {
     if (state.left_thruster_activated) {
       const auto right = state.right_thruster_activated;
-      return TorqueChanged{false, right,
-                           state.torque - ActivateLeftThruster::torque};
+      const auto torque = state.torque - ActivateLeftThruster<Id>::torque;
+      return TorqueChanged<Id>{false, right, torque};
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute ActivateRightThruster -> (TorqueChanged)
-  static constexpr std::variant<std::monostate, TorqueChanged>
-  execute(const state_type &state, const ActivateRightThruster &event) {
+  static constexpr std::variant<std::monostate, TorqueChanged<Id>>
+  execute(const state_type &state, const ActivateRightThruster<Id> &event) {
     if (!state.right_thruster_activated) {
       const auto left = state.left_thruster_activated;
-      return TorqueChanged{left, true,
-                           state.torque + ActivateRightThruster::torque};
+      const auto torque = state.torque + ActivateRightThruster<Id>::torque;
+      return TorqueChanged<Id>{left, true, torque};
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute DeactivateRightThruster -> (TorqueChanged)
-  static constexpr std::variant<std::monostate, TorqueChanged>
-  execute(const state_type &state, const DeactivateRightThruster &event) {
+  static constexpr std::variant<std::monostate, TorqueChanged<Id>>
+  execute(const state_type &state, const DeactivateRightThruster<Id> &event) {
     if (state.right_thruster_activated) {
       const auto left = state.left_thruster_activated;
-      return TorqueChanged{left, false,
-                           state.torque - ActivateRightThruster::torque};
+      const auto torque = state.torque - ActivateRightThruster<Id>::torque;
+      return TorqueChanged<Id>{left, false, torque};
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute Tick -> VelocityChanged & PositionChanged
-  static constexpr std::tuple<VelocityChanged, PositionChanged>
+  static constexpr std::tuple<VelocityChanged<Id>, PositionChanged<Id>>
   execute(const state_type &state, const Tick &command) {
     const auto velocity = update_velocity(state, command);
     const auto angular_velocity = update_angular_velocity(state, command);
@@ -154,7 +134,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply ThrustChanged
   static constexpr state_type apply(const state_type &state,
-                                    const ThrustChanged &event) {
+                                    const ThrustChanged<Id> &event) {
     state_type next = state;
     next.main_thruster_activated = event.main_thruster_activated;
     next.thrust = event.thrust;
@@ -164,7 +144,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply TorqueChanged
   static constexpr state_type apply(const state_type &state,
-                                    const TorqueChanged &event) {
+                                    const TorqueChanged<Id> &event) {
     state_type next = state;
     next.left_thruster_activated = event.left_thruster_activated;
     next.right_thruster_activated = event.right_thruster_activated;
@@ -175,7 +155,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply VelocityChanged
   static constexpr state_type apply(const state_type &state,
-                                    const VelocityChanged &event) {
+                                    const VelocityChanged<Id> &event) {
     state_type next = state;
     next.velocity = event.velocity;
     next.angular_velocity = event.angular_velocity;
@@ -185,7 +165,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
   static constexpr state_type apply(const state_type &state,
-                                    const PositionChanged &event) {
+                                    const PositionChanged<Id> &event) {
     state_type next = state;
     next.position = event.position;
     next.rotation = event.rotation;
