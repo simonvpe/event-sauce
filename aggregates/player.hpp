@@ -25,6 +25,7 @@ template <int Id> struct VelocityChanged {
 template <int Id> struct PositionChanged {
   tensor<meter_t> position;
   radian_t rotation;
+  tensor<meter_t> size;
 };
 
 /*******************************************************************************
@@ -43,6 +44,7 @@ public:
     tensor<mps_t> velocity = {0_mps, 0_mps};
     radians_per_second_t angular_velocity = 0_rad_per_s;
     tensor<meter_t> position = {1.0_m, 1.0_m};
+    tensor<meter_t> size = {1.0_m, 1.0_m};
     newton_t thrust = 0_N;
     newton_meter_t torque = 0_Nm;
     bool left_thruster_activated = false;
@@ -128,7 +130,7 @@ public:
     const auto angular_velocity = update_angular_velocity(state, command);
     const auto position = update_position(state, command);
     const auto rotation = update_rotation(state, command);
-    return {{velocity, angular_velocity}, {position, rotation}};
+    return {{velocity, angular_velocity}, {position, rotation, state.size}};
   }
 
   //////////////////////////////////////////////////////////////////////////////

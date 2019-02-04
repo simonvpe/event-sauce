@@ -24,13 +24,30 @@ template <int Id, typename Gui> struct PlayerProjection {
   // Apply PositionChanged
   static void project(Gui &gui, const PositionChanged<Id> &event) {
     static constexpr auto scale_factor = 100.0f;
+    /*
     auto ship = sf::CircleShape{80.f, 3};
-    ship.setOrigin(80.f, 80.f);
-    degree_t rotation = event.rotation;
-    ship.setRotation(rotation.to<float>() + 90.0f);
-    const float x = event.position.x * scale_factor;
-    const float y = event.position.y * scale_factor;
-    ship.move({x, y});
+    ship.setOrigin(80.f, 80.f);*/
+    auto ship = sf::Sprite{};
+    ship.setTexture(gui.shipTexture);
+    {
+      const auto bounds = ship.getLocalBounds();
+      const float scale_x = event.size.x / bounds.width * scale_factor;
+      const float scale_y = event.size.y / bounds.height * scale_factor;
+      ship.scale(scale_x, scale_y);
+    }
+    {
+      const auto bounds = ship.getLocalBounds();
+      ship.setOrigin(bounds.width/2, bounds.height/2);
+    }
+    {
+      const degree_t rotation = event.rotation;
+      ship.setRotation(rotation.to<float>() + 90.0f);
+    }
+    {
+      const float x = event.position.x * scale_factor;
+      const float y = event.position.y * scale_factor;
+      ship.move({x, y});
+    }
     gui.window.draw(ship);
   }
 };
@@ -38,7 +55,7 @@ template <int Id, typename Gui> struct PlayerProjection {
 /*******************************************************************************
  ** CameraProjection
  *******************************************************************************/
-template<int Id, typename Gui> struct CameraProjection {
+template <int Id, typename Gui> struct CameraProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
   struct state_type {};
@@ -62,11 +79,15 @@ template<int Id, typename Gui> struct CameraProjection {
 struct Gui {
   sf::RenderWindow window;
   sf::Font font;
+  sf::Texture shipTexture;
   Gui() : window{sf::VideoMode(800, 600), "My window"} {
     // if (!font.loadFromFile("/usr/share/doc/dbus-python/_static/fonts/"
     //                        "RobotoSlab/roboto-slab-v7-regular.ttf")) {
     //   throw std::runtime_error{"Failed to load fonts!"};
     // }
+    if (!shipTexture.loadFromFile("../spaceship.png")) {
+      throw std::runtime_error{"Failed to load sprite"};
+    }
   }
 };
 
@@ -80,7 +101,8 @@ int main() {
   using PlayerProjection_0 = PlayerProjection<0, Gui>;
   using CameraProjection_0 = CameraProjection<0, Gui>;
 
-  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0, CameraProjection_0>(gui);
+  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0,
+                                       CameraProjection_0>(gui);
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
