@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-void kruskal(int width, int height) {
+auto kruskal(int width, int height) {
   static constexpr auto N = 1;
   static constexpr auto S = 2;
   static constexpr auto E = 4;
@@ -86,34 +86,6 @@ void kruskal(int width, int height) {
 
   std::random_shuffle(edges.begin(), edges.end());
 
-  const auto display = [](const auto &grid) {
-    std::cout << " ";
-    for (auto i = 0; i < grid[0].size() * 2 - 1; ++i) {
-      std::cout << "_";
-    }
-    std::cout << std::endl;
-    for (auto y = 0; y < grid.size(); ++y) {
-      const auto &row = grid[y];
-      std::cout << "|";
-      for (auto x = 0; x < row.size(); ++x) {
-        const auto &cell = row[x];
-        if (cell == 0) {
-          std::cout << "*";
-        }
-        std::cout << ((cell & S) ? " " : "_");
-        if (cell & E) {
-          std::cout << ((cell | row[x + 1] & S) ? " " : "_");
-        } else {
-          std::cout << "|";
-        }
-        if (cell == 0) {
-          std::cout << "*";
-        }
-      }
-      std::cout << "\n";
-    }
-  };
-
   while (!edges.empty()) {
     const auto edge = edges.back();
     edges.pop_back();
@@ -126,7 +98,25 @@ void kruskal(int width, int height) {
       set1.connect(set2);
       grid[edge.y][edge.x] |= edge.direction;
       grid[ny][nx] |= opposite(edge.direction);
-      display(grid);
     }
   }
+
+  std::vector<std::tuple<std::pair<int, int>, std::pair<int, int>>> result{};
+  for (auto x = 0; x < grid[0].size(); ++x) {
+    result.push_back({{x, 0}, {x + 1, 0}});
+  }
+  for (auto y = 0; y < grid.size(); ++y) {
+    const auto &row = grid[y];
+    result.push_back({{0, y}, {0, y + 1}});
+    for (auto x = 0; x < row.size(); ++x) {
+      const auto &cell = row[x];
+      if (!(cell & S)) {
+        result.push_back({{x, y + 1}, {x + 1, y + 1}});
+      }
+      if (!(cell & E)) {
+        result.push_back({{x + 1, y}, {x + 1, y + 1}});
+      }
+    }
+  }
+  return result;
 }

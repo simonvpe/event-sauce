@@ -7,10 +7,10 @@
  ** Example
  *******************************************************************************/
 
+#include "kruskal.hpp"
 #include <SFML/Graphics.hpp>
 #include <memory>
 #include <sstream>
-#include "kruskal.hpp"
 
 /*******************************************************************************
  ** PlayerProjection
@@ -36,6 +36,27 @@ template <int Id, typename Gui> struct PlayerProjection {
 };
 
 /*******************************************************************************
+ ** CameraProjection
+ *******************************************************************************/
+template<int Id, typename Gui> struct CameraProjection {
+  constexpr static auto execute = event_sauce::disabled;
+  constexpr static auto apply = event_sauce::disabled;
+  struct state_type {};
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply PositionChanged
+  static void project(Gui &gui, const PositionChanged<Id> &event) {
+    static constexpr auto scale_factor = 100.0f;
+    const float x = event.position.x * scale_factor;
+    const float y = event.position.y * scale_factor;
+
+    auto view = gui.window.getDefaultView();
+    view.setCenter({x, y});
+    gui.window.setView(view);
+  }
+};
+
+/*******************************************************************************
  ** main
  *******************************************************************************/
 struct Gui {
@@ -52,16 +73,14 @@ struct Gui {
 int main() {
   using namespace std::chrono_literals;
 
-  kruskal(10, 10);
+  const auto maze = kruskal(10, 10);
   Gui gui;
 
   using Player_0 = Player<0>;
   using PlayerProjection_0 = PlayerProjection<0, Gui>;
-  using Player_1 = Player<1>;
-  using PlayerProjection_1 = PlayerProjection<1, Gui>;
+  using CameraProjection_0 = CameraProjection<0, Gui>;
 
-  auto ctx = event_sauce::make_context<Player_0, Player_1, PlayerProjection_0,
-                                       PlayerProjection_1>(gui);
+  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0, CameraProjection_0>(gui);
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
@@ -95,9 +114,24 @@ int main() {
     }
 
     gui.window.clear(sf::Color::Black);
+
+    for (const auto &coords : maze) {
+      const float x0 = std::get<0>(coords).first * 500;
+      const float y0 = std::get<0>(coords).second * 500;
+      const float x1 = std::get<1>(coords).first * 500;
+      const float y1 = std::get<1>(coords).second * 500;
+      sf::VertexArray line(sf::Lines, 2);
+      line[0].position = {x0, y0};
+      line[0].color = sf::Color::White;
+      line[1].position = {x1, y1};
+      line[1].color = sf::Color::White;
+      gui.window.draw(line);
+    }
+
     const auto now = std::chrono::high_resolution_clock::now();
     ctx.dispatch(Tick{now - t});
     t = now;
+
     gui.window.display();
   }
 
