@@ -10,6 +10,7 @@
 #include <SFML/Graphics.hpp>
 #include <memory>
 #include <sstream>
+#include "kruskal.hpp"
 
 /*******************************************************************************
  ** PlayerProjection
@@ -51,12 +52,16 @@ struct Gui {
 int main() {
   using namespace std::chrono_literals;
 
+  kruskal(10, 10);
   Gui gui;
 
   using Player_0 = Player<0>;
   using PlayerProjection_0 = PlayerProjection<0, Gui>;
+  using Player_1 = Player<1>;
+  using PlayerProjection_1 = PlayerProjection<1, Gui>;
 
-  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0>(gui);
+  auto ctx = event_sauce::make_context<Player_0, Player_1, PlayerProjection_0,
+                                       PlayerProjection_1>(gui);
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {

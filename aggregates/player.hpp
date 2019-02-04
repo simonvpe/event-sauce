@@ -42,7 +42,7 @@ public:
     radian_t rotation = 0_rad;
     tensor<mps_t> velocity = {0_mps, 0_mps};
     radians_per_second_t angular_velocity = 0_rad_per_s;
-    tensor<meter_t> position = {0.0_m, 0.0_m};
+    tensor<meter_t> position = {1.0_m, 1.0_m};
     newton_t thrust = 0_N;
     newton_meter_t torque = 0_Nm;
     bool left_thruster_activated = false;
