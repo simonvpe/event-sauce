@@ -21,7 +21,9 @@ template <int Id> struct ActivateRightThruster {
 template <int Id> struct DeactivateRightThruster {};
 
 struct CreateMap {
-  std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> edges;
+  using Grid = std::array<std::array<bool, 100>, 100>;
+  static constexpr meter_t cell_width = 1_m;
+  Grid grid;
 };
 
 struct Tick {

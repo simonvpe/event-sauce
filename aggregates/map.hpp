@@ -5,22 +5,25 @@
 
 // Events
 
+
+
 struct MapUpdated {
-  std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> edges;
+  using Grid = std::array<std::array<bool, 100>, 100>;
+  Grid grid;
 };
 
 struct Map {
   static constexpr auto project = [] {}; // disabled
 
   struct state_type {
-    std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> edges;
+    CreateMap::Grid grid;
   };
 
   static MapUpdated execute(const state_type &state, const CreateMap &command) {
-    return {command.edges};
+    return {command.grid};
   }
 
   static state_type apply(const state_type &state, const MapUpdated &event) {
-    return {event.edges};
+    return {event.grid};
   }
 };

@@ -33,7 +33,7 @@ template <int Id, typename Gui> struct PlayerProjection {
       const float scale_x = event.size.x / bounds.width * scale_factor;
       const float scale_y = event.size.y / bounds.height * scale_factor;
       ship.scale(scale_x, scale_y);
-      }
+    }
     {
       const auto bounds = ship.getLocalBounds();
       ship.setOrigin(bounds.width / 2, bounds.height / 2);
@@ -48,6 +48,12 @@ template <int Id, typename Gui> struct PlayerProjection {
       ship.move({x, y});
     }
     gui.window.draw(ship);
+
+    for (const auto &row : gui.tiles) {
+      for (const auto &sprite : row) {
+        gui.window.draw(sprite);
+      }
+    }
   }
 };
 
@@ -83,17 +89,20 @@ template <typename Gui> struct MapProjection {
   // Apply MapUpdated
   static void project(Gui &gui, const MapUpdated &event) {
     gui.map.clear();
-    for (const auto &coords : event.edges) {
-      const float x0 = std::get<0>(coords).x * scale_factor;
-      const float y0 = std::get<0>(coords).y * scale_factor;
-      const float x1 = std::get<1>(coords).x * scale_factor;
-      const float y1 = std::get<1>(coords).y * scale_factor;
-      sf::VertexArray line(sf::Lines, 2);
-      line[0].position = {x0, y0};
-      line[0].color = sf::Color::White;
-      line[1].position = {x1, y1};
-      line[1].color = sf::Color::White;
-      gui.map.push_back(line);
+    for (const auto &coords : event.grid) {
+      for (auto y = 0; y < event.grid.size(); ++y) {
+        const auto &row = event.grid[y];
+        for (auto x = 0; x < row.size(); ++x) {
+          const auto &cell = row[x];
+          if (cell) {
+            const float px = scale_factor * x;
+            const float py = scale_factor * y;
+            sf::RectangleShape sprite({scale_factor, scale_factor});
+            sprite.move({px, py});
+            gui.tiles[y][x] = sprite;
+          }
+        }
+      }
     }
   }
 };
@@ -107,6 +116,7 @@ struct Gui {
   sf::Texture shipTexture;
   std::vector<sf::VertexArray> map;
   sf::Sprite ship;
+  std::array<std::array<sf::RectangleShape, 100>, 100> tiles;
 
   Gui() : window{sf::VideoMode(800, 600), "My window"} {
     // if (!font.loadFromFile("/usr/share/doc/dbus-python/_static/fonts/"
@@ -139,19 +149,21 @@ int main() {
       event_sauce::make_context<Player_0, PlayerProjection_0,
                                 CameraProjection_0, Map, MapProjection<Gui>>(
           gui);
-  const auto maze = kruskal(100, 100);
-  std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
-  std::transform(maze.begin(), maze.end(), std::back_inserter(map),
-                 [](const auto &segment) {
-                   const auto p0 = std::get<0>(segment);
-                   const auto p1 = std::get<1>(segment);
-                   auto s0 = tensor<meter_t>{meter_t(p0.first * 10),
-                                             meter_t(p0.second * 10)};
-                   auto s1 = tensor<meter_t>{meter_t(p1.first * 10),
-                                             meter_t(p1.second * 10)};
-                   return std::make_tuple(s0, s1);
-                 });
-  ctx.dispatch(CreateMap{std::move(map)});
+  const auto maze = kruskal<10, 10, 10>();
+  /*
+std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
+std::transform(maze.begin(), maze.end(), std::back_inserter(map),
+[](const auto &segment) {
+const auto p0 = std::get<0>(segment);
+const auto p1 = std::get<1>(segment);
+auto s0 = tensor<meter_t>{meter_t(p0.first * 10),
+                   meter_t(p0.second * 10)};
+auto s1 = tensor<meter_t>{meter_t(p1.first * 10),
+                   meter_t(p1.second * 10)};
+return std::make_tuple(s0, s1);
+});
+  */
+  ctx.dispatch(CreateMap{std::move(maze)});
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {

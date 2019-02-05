@@ -1,11 +1,14 @@
+
 #pragma once
 
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include <array>
 
-auto kruskal(int width, int height) {
+template<int Width, int Height, int K>
+auto kruskal() {
   static constexpr auto N = 1;
   static constexpr auto S = 2;
   static constexpr auto E = 4;
@@ -67,14 +70,14 @@ auto kruskal(int width, int height) {
     int x, y, direction;
   };
 
-  auto grid = std::vector<std::vector<int>>(height, std::vector<int>(width, 0));
+  auto grid = std::vector<std::vector<int>>(Height, std::vector<int>(Width, 0));
   auto sets =
-      std::vector<std::vector<Tree>>(height, std::vector<Tree>(width, Tree{}));
+      std::vector<std::vector<Tree>>(Height, std::vector<Tree>(Width, Tree{}));
 
   auto edges = std::vector<Edge>{};
 
-  for (auto y = 0; y < height; ++y) {
-    for (auto x = 0; x < width; ++x) {
+  for (auto y = 0; y < Height; ++y) {
+    for (auto x = 0; x < Width; ++x) {
       if (y > 0) {
         edges.push_back({x, y, N});
       }
@@ -101,22 +104,17 @@ auto kruskal(int width, int height) {
     }
   }
 
-  std::vector<std::tuple<std::pair<int, int>, std::pair<int, int>>> result{};
-  for (auto x = 0; x < grid[0].size(); ++x) {
-    result.push_back({{x, 0}, {x + 1, 0}});
+  using Row =std::array<bool, K*Width>;
+  using Grid = std::array<Row, K*Height>;
+  auto result = Grid{};
+
+  for(auto x = 0 ; x < K*Width ; ++x) {
+    result[0][x] = true;
+    result[K*Height - 1][x] = true;
   }
-  for (auto y = 0; y < grid.size(); ++y) {
-    const auto &row = grid[y];
-    result.push_back({{0, y}, {0, y + 1}});
-    for (auto x = 0; x < row.size(); ++x) {
-      const auto &cell = row[x];
-      if (!(cell & S)) {
-        result.push_back({{x, y + 1}, {x + 1, y + 1}});
-      }
-      if (!(cell & E)) {
-        result.push_back({{x + 1, y}, {x + 1, y + 1}});
-      }
-    }
+  for(auto y = 0 ; y < K*Height ; ++y) {
+    result[y][0] = true;
+    result[y][K*Width - 1] = true;
   }
   return result;
 }
