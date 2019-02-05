@@ -2,13 +2,12 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <iostream>
 #include <vector>
-#include <array>
 
-template<int Width, int Height, int K>
-auto kruskal() {
+template <int Width, int Height, int K> auto kruskal() {
   static constexpr auto N = 1;
   static constexpr auto S = 2;
   static constexpr auto E = 4;
@@ -104,17 +103,33 @@ auto kruskal() {
     }
   }
 
-  using Row =std::array<bool, K*Width>;
-  using Grid = std::array<Row, K*Height>;
+  using Row = std::array<bool, K * Width>;
+  using Grid = std::array<Row, K * Height>;
   auto result = Grid{};
 
-  for(auto x = 0 ; x < K*Width ; ++x) {
+  for (auto x = 0; x < K * Width; ++x) {
     result[0][x] = true;
-    result[K*Height - 1][x] = true;
+    result[K * Height - 1][x] = true;
   }
-  for(auto y = 0 ; y < K*Height ; ++y) {
+  for (auto y = 0; y < K * Height; ++y) {
     result[y][0] = true;
-    result[y][K*Width - 1] = true;
+    result[y][K * Width - 1] = true;
+  }
+  for (auto y = 0; y < grid.size(); ++y) {
+    const auto &row = grid[y];
+    for (auto x = 0; x < row.size(); ++x) {
+      const auto &cell = row[x];
+      if (!(cell & S)) {
+        for (auto i = 0; i < K; ++i) {
+          result[y * K + K][x * K + i] = true;
+        }
+      }
+      if (!(cell & E)) {
+        for (auto i = 0; i < K; ++i) {
+          result[y * K + i][x * K + K] = true;
+        }
+      }
+    }
   }
   return result;
 }

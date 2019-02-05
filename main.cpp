@@ -13,7 +13,7 @@
 #include <memory>
 #include <sstream>
 
-static constexpr auto scale_factor = 100.0f;
+static constexpr auto scale_factor = 10.0f;
 
 /*******************************************************************************
  ** PlayerProjection
