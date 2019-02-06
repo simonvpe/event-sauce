@@ -1,3 +1,4 @@
+#include "aggregates/collision.hpp"
 #include "aggregates/map.hpp"
 #include "aggregates/player.hpp"
 #include "vendor/event-sauce.hpp"
@@ -13,7 +14,7 @@
 #include <memory>
 #include <sstream>
 
-static constexpr auto scale_factor = 10.0f;
+static constexpr auto scale_factor = 100.0f;
 
 /*******************************************************************************
  ** PlayerProjection
@@ -95,9 +96,11 @@ template <typename Gui> struct MapProjection {
         for (auto x = 0; x < row.size(); ++x) {
           const auto &cell = row[x];
           if (cell) {
-            const float px = scale_factor * x;
-            const float py = scale_factor * y;
-            sf::RectangleShape sprite({scale_factor, scale_factor});
+            const float px = CreateMap::cell_width * scale_factor * x;
+            const float py = CreateMap::cell_width * scale_factor * y;
+            sf::RectangleShape sprite(
+                {(float)CreateMap::cell_width * scale_factor,
+                 (float)CreateMap::cell_width * scale_factor});
             sprite.move({px, py});
             gui.tiles[y][x] = sprite;
           }
@@ -145,10 +148,9 @@ int main() {
   using PlayerProjection_0 = PlayerProjection<0, Gui>;
   using CameraProjection_0 = CameraProjection<0, Gui>;
 
-  auto ctx =
-      event_sauce::make_context<Player_0, PlayerProjection_0,
-                                CameraProjection_0, Map, MapProjection<Gui>>(
-          gui);
+  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0,
+                                       CameraProjection_0, Map,
+                                       MapProjection<Gui>, Collision>(gui);
   const auto maze = kruskal<10, 10, 10>();
   /*
 std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
