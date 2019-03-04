@@ -148,9 +148,10 @@ int main() {
   using PlayerProjection_0 = PlayerProjection<0, Gui>;
   using CameraProjection_0 = CameraProjection<0, Gui>;
 
-  auto ctx = event_sauce::make_context<Player_0, PlayerProjection_0,
-                                       CameraProjection_0, Map,
-                                       MapProjection<Gui>, Collision>(gui);
+  auto ctx =
+      event_sauce::make_context<Player_0, PlayerProjection_0,
+                                CameraProjection_0, Map, MapProjection<Gui>,
+                                Collision, MainThruster>(gui);
   const auto maze = kruskal<10, 10, 10>();
   /*
 std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
@@ -176,7 +177,7 @@ return std::make_tuple(s0, s1);
       }
       if (event.type == sf::Event::KeyPressed) {
         if (event.key.code == sf::Keyboard::Up) {
-          ctx.dispatch(ActivateMainThruster<0>{});
+          ctx.dispatch(ActivateMainThruster{0});
         }
         if (event.key.code == sf::Keyboard::Left) {
           ctx.dispatch(ActivateRightThruster<0>{});
@@ -187,7 +188,7 @@ return std::make_tuple(s0, s1);
       }
       if (event.type == sf::Event::KeyReleased) {
         if (event.key.code == sf::Keyboard::Up) {
-          ctx.dispatch(DeactivateMainThruster<0>{});
+          ctx.dispatch(DeactivateMainThruster{0});
         }
         if (event.key.code == sf::Keyboard::Left) {
           ctx.dispatch(DeactivateRightThruster<0>{});

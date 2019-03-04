@@ -1,15 +1,11 @@
 #pragma once
 #include "../commands.hpp"
 #include "../common/units.hpp"
+#include "main_thruster.hpp"
 #include <tuple>
 #include <variant>
 
 // Events
-
-template <int Id> struct ThrustChanged {
-  bool main_thruster_activated;
-  newton_t thrust;
-};
 
 template <int Id> struct TorqueChanged {
   bool left_thruster_activated;
@@ -49,30 +45,7 @@ public:
     newton_meter_t torque = 0_Nm;
     bool left_thruster_activated = false;
     bool right_thruster_activated = false;
-    bool main_thruster_activated = false;
   };
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Execute ActivateMainThruster -> (ThrustChanged)
-  static constexpr std::variant<std::monostate, ThrustChanged<Id>>
-  execute(const state_type &state, const ActivateMainThruster<Id> &event) {
-    if (!state.main_thruster_activated) {
-      const auto thrust = state.thrust + ActivateMainThruster<Id>::thrust;
-      return ThrustChanged<Id>{true, thrust};
-    }
-    return {};
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Execute DeactivateMainThruster -> (ThrustChanged)
-  static constexpr std::variant<std::monostate, ThrustChanged<Id>>
-  execute(const state_type &state, const DeactivateMainThruster<Id> &event) {
-    if (state.main_thruster_activated) {
-      const auto thrust = state.thrust - ActivateMainThruster<Id>::thrust;
-      return ThrustChanged<Id>{false, thrust};
-    }
-    return {};
-  }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute ActivateLeftThruster -> (TorqueChanged)
@@ -136,9 +109,8 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply ThrustChanged
   static constexpr state_type apply(const state_type &state,
-                                    const ThrustChanged<Id> &event) {
+                                    const ThrustChanged &event) {
     state_type next = state;
-    next.main_thruster_activated = event.main_thruster_activated;
     next.thrust = event.thrust;
     return next;
   }

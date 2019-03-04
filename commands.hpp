@@ -2,11 +2,16 @@
 #include "common/units.hpp"
 #include <vector>
 
-template <int Id> struct ActivateMainThruster {
+using PlayerId = int;
+
+struct ActivateMainThruster {
+  PlayerId player;
   static constexpr newton_t thrust = 10.0_N;
 };
 
-template <int Id> struct DeactivateMainThruster {};
+struct DeactivateMainThruster {
+  PlayerId player;
+};
 
 template <int Id> struct ActivateLeftThruster {
   static constexpr newton_meter_t torque = 10.0_Nm;
