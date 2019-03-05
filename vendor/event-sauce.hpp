@@ -208,6 +208,21 @@ template <typename ReadModel, typename... Aggregates> struct Context {
       : read_model{read_model}, state{}, router{bind(state, read_model,
                                                      Aggregates{}...)} {}
 
+  struct DispatchVisitor {
+    DispatchVisitor(Context &ctx) : ctx{ctx} {}
+    Context &ctx;
+
+    template <typename T> void operator()(const T &value) {
+      ctx.dispatch(value);
+    }
+  };
+
+  template <typename... Command>
+  void dispatch(const std::variant<Command...> &command) {
+    std::cout << "Dispatching variant" << std::endl;
+    std::visit(DispatchVisitor{*this}, command);
+  }
+
   template <typename Command> void dispatch(const Command &cmd) {
     auto events = std::make_tuple(AggregateExecute<Aggregates>{
         std::get<typename Aggregates::state_type>(state)}(cmd)...);

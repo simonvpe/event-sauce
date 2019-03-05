@@ -42,7 +42,6 @@ struct RigidBody {
   // Execute ApplyForce -> RigidBodyForceApplied
   static RigidBodyForceApplied execute(const state_type &state,
                                        const ApplyForce &command) {
-    std::cout << "Force applied " << command.entity_id << std::endl;
     return {command.correlation_id, command.entity_id, command.force};
   }
 

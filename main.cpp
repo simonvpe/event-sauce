@@ -59,8 +59,8 @@ template <typename Gui> struct PlayerProjection {
     }
   }
 
-  static void project(Gui &gui, const ShipRotationChanged &event) {
-    degree_t angle = event.angle;
+  static void project(Gui &gui, const EntityRotationChanged &event) {
+    degree_t angle = event.rotation;
     gui.ship_rotation = angle.to<float>() + 90.0f;
   }
 };
@@ -187,8 +187,7 @@ int main() {
     const auto ship_position = gui.ship_position;
     const auto look_vector = mouse_position - ship_position;
     const auto angle = radian_t{std::atan2(look_vector.y, look_vector.x)};
-    ctx.dispatch(SetShipRotation{0, angle});
-    ctx.dispatch(SetEntityRotation{0, 12, angle});
+    ctx.dispatch(SetEntityRotation{999, 0, angle});
     gui.draw();
     gui.window.display();
   }

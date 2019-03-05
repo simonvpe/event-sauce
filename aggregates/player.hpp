@@ -5,6 +5,7 @@
 #include "main_thruster.hpp"
 #include "mouse_aim.hpp"
 #include "rigid_body.hpp"
+#include <immer/map.hpp>
 #include <tuple>
 #include <variant>
 
@@ -43,11 +44,14 @@ public:
   // State
   //////////////////////////////////////////////////////////////////////////////
 
-  struct state_type {
-    newton_t thrust = 10_N;
+  struct player_t {
+    newton_t thrust;
     EntityId root_entity_id;
-    CorrelationId player_id;
     radian_t rotation;
+  };
+
+  struct state_type {
+    immer::map<CorrelationId, player_t> players;
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -55,34 +59,32 @@ public:
   //////////////////////////////////////////////////////////////////////////////
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute Created -> Created
-  static constexpr Created execute(const state_type &state, const Create &cmd) {
-    return {cmd.player_id};
+  // Execute Create -> Created
+  static Created execute(const state_type &state, const Create &cmd) {
+    return Created{cmd.player_id};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Created
-  static constexpr state_type apply(const state_type &state,
-                                    const Created &evt) {
+  static state_type apply(const state_type &state, const Created &evt) {
     state_type next = state;
-    next.player_id = evt.player_id;
+    next.players = next.players.set(evt.player_id, {});
     return next;
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Process Created -> CreateEntity
-  static constexpr CreateEntity process(const state_type &state,
-                                        const Created &evt) {
-    return {state.player_id};
+  static CreateEntity process(const state_type &state, const Created &evt) {
+    return {evt.player_id};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply EntityCreated
-  static constexpr state_type apply(const state_type &state,
-                                    const EntityCreated &evt) {
-    if (evt.correlation_id == state.player_id) {
+  static state_type apply(const state_type &state, const EntityCreated &evt) {
+    if (state.players.find(evt.correlation_id)) {
+      auto player = player_t{10_N, evt.entity_id, 0_rad};
       state_type next = state;
-      next.root_entity_id = evt.entity_id;
+      next.players = next.players.set(evt.correlation_id, player);
       return next;
     }
     return state;
@@ -92,8 +94,10 @@ public:
   // Process EntityCreated -> [CreateRigidBody]
   static std::vector<CreateRigidBody> process(const state_type &state,
                                               const EntityCreated &evt) {
-    if (evt.correlation_id == state.player_id) {
-      return {{evt.correlation_id, state.root_entity_id, 1_kg}};
+    const auto player_id = evt.correlation_id;
+    if (state.players.find(player_id)) {
+      const auto entity_id = state.players[player_id].root_entity_id;
+      return {{evt.correlation_id, entity_id, 1_kg}};
     }
     return {};
   }
@@ -122,16 +126,22 @@ public:
   static ApplyForce process(const state_type &state,
                             const ThrusterActivated &evt) {
     using namespace units::math;
-    const auto rotation = state.rotation;
+    const auto &player = state.players[evt.player_id];
+    const auto rotation = player.rotation;
     const auto direction = tensor<float>{cos(rotation), sin(rotation)};
-    const auto thrust = direction * state.thrust;
-    return {state.player_id, state.root_entity_id, thrust};
+    const auto thrust = direction * player.thrust;
+    return {evt.player_id, player.root_entity_id, thrust};
   }
 
   static state_type apply(const state_type &state,
                           const EntityRotationChanged &evt) {
-    state_type next = state;
-    next.rotation = evt.rotation;
-    return next;
+    if (const auto *p = state.players.find(evt.correlation_id)) {
+      player_t player = *p;
+      player.rotation = evt.rotation;
+      state_type next = state;
+      next.players = next.players.set(evt.correlation_id, std::move(player));
+      return next;
+    }
+    return state;
   }
 };
