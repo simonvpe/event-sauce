@@ -16,12 +16,12 @@ private:
   int value;
 };
 
-struct ActivateMainThruster {
+struct ActivateThruster {
   PlayerId player;
   static constexpr newton_t thrust = 10.0_N;
 };
 
-struct DeactivateMainThruster {
+struct DeactivateThruster {
   PlayerId player;
 };
 

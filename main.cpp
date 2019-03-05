@@ -20,14 +20,14 @@ static constexpr auto scale_factor = 100.0f;
 /*******************************************************************************
  ** PlayerProjection
  *******************************************************************************/
-template <int Id, typename Gui> struct PlayerProjection {
+template <typename Gui> struct PlayerProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
   struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const PositionChanged<Id> &event) {
+  static void project(Gui &gui, const PositionChanged &event) {
     sf::Sprite ship;
     ship.setTexture(gui.shipTexture);
     {
@@ -65,14 +65,14 @@ template <int Id, typename Gui> struct PlayerProjection {
 /*******************************************************************************
  ** CameraProjection
  *******************************************************************************/
-template <int Id, typename Gui> struct CameraProjection {
+template <typename Gui> struct CameraProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
   struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const PositionChanged<Id> &event) {
+  static void project(Gui &gui, const PositionChanged &event) {
     const float x = event.position.x * scale_factor;
     const float y = event.position.y * scale_factor;
 
@@ -150,14 +150,10 @@ int main() {
 
   Gui gui;
 
-  using Player_0 = Player<0>;
-  using PlayerProjection_0 = PlayerProjection<0, Gui>;
-  using CameraProjection_0 = CameraProjection<0, Gui>;
-
   auto ctx =
-      event_sauce::make_context<Player_0, PlayerProjection_0,
-                                CameraProjection_0, Map, MapProjection<Gui>,
-                                Collision, MainThruster, MouseAim>(gui);
+      event_sauce::make_context<Player, PlayerProjection<Gui>,
+                                CameraProjection<Gui>, Map, MapProjection<Gui>,
+                                Collision, Thruster, MouseAim>(gui);
   const auto maze = kruskal<10, 10, 10>();
   /*
 std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
@@ -183,12 +179,12 @@ return std::make_tuple(s0, s1);
       }
       if (event.type == sf::Event::MouseButtonPressed) {
         if (event.mouseButton.button == sf::Mouse::Left) {
-          ctx.dispatch(ActivateMainThruster{0});
+          ctx.dispatch(ActivateThruster{0});
         }
       }
       if (event.type == sf::Event::MouseButtonReleased) {
         if (event.mouseButton.button == sf::Mouse::Left) {
-          ctx.dispatch(DeactivateMainThruster{0});
+          ctx.dispatch(DeactivateThruster{0});
         }
       }
     }

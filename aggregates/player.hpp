@@ -8,15 +8,17 @@
 
 // Events
 
-template <int Id> struct TorqueChanged {
+struct TorqueChanged {
   bool left_thruster_activated;
   bool right_thruster_activated;
   newton_meter_t torque;
 };
 
-template <int Id> struct VelocityChanged { tensor<mps_t> velocity; };
+struct VelocityChanged {
+  tensor<mps_t> velocity;
+};
 
-template <int Id> struct PositionChanged {
+struct PositionChanged {
   tensor<meter_t> position;
   tensor<meter_t> size;
 };
@@ -24,7 +26,7 @@ template <int Id> struct PositionChanged {
 /*******************************************************************************
  ** Player
  *******************************************************************************/
-template <int Id = 0> struct Player {
+struct Player {
 public:
   static constexpr auto project = [] {}; // disabled
 
@@ -41,7 +43,7 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute Tick -> VelocityChanged & PositionChanged
-  static constexpr std::tuple<VelocityChanged<Id>, PositionChanged<Id>>
+  static constexpr std::tuple<VelocityChanged, PositionChanged>
   execute(const state_type &state, const Tick &command) {
     const auto velocity = update_velocity(state, command.dt);
     const auto position = update_position(state, command.dt);
@@ -60,7 +62,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply VelocityChanged
   static constexpr state_type apply(const state_type &state,
-                                    const VelocityChanged<Id> &event) {
+                                    const VelocityChanged &event) {
     state_type next = state;
     next.velocity = event.velocity;
     return next;
@@ -69,7 +71,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
   static constexpr state_type apply(const state_type &state,
-                                    const PositionChanged<Id> &event) {
+                                    const PositionChanged &event) {
     state_type next = state;
     next.position = event.position;
     return next;

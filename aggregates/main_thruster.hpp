@@ -12,7 +12,7 @@ struct ThrustChanged {
   bool activated;
 };
 
-struct MainThruster {
+struct Thruster {
   static constexpr auto project = [] {}; // disabled
 
   struct state_type {
@@ -23,9 +23,9 @@ struct MainThruster {
   //////////////////////////////////////////////////////////////////////////////
   // ActivateMainThruster -> ThrustChanged
   static std::variant<std::monostate, ThrustChanged>
-  execute(const state_type &state, const ActivateMainThruster &command) {
+  execute(const state_type &state, const ActivateThruster &command) {
     if (!state.activated) {
-      const auto thrust = state.thrust + ActivateMainThruster::thrust;
+      const auto thrust = state.thrust + ActivateThruster::thrust;
       return {ThrustChanged{command.player, thrust, true}};
     }
     return {};
@@ -34,9 +34,9 @@ struct MainThruster {
   //////////////////////////////////////////////////////////////////////////////
   // DeactivateMainThruster -> ThrustChanged
   static std::variant<std::monostate, ThrustChanged>
-  execute(const state_type &state, const DeactivateMainThruster &command) {
+  execute(const state_type &state, const DeactivateThruster &command) {
     if (state.activated) {
-      const auto thrust = state.thrust - ActivateMainThruster::thrust;
+      const auto thrust = state.thrust - ActivateThruster::thrust;
       return {ThrustChanged{command.player, thrust, false}};
     }
     return {};

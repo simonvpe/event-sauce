@@ -40,7 +40,7 @@ struct Collision {
 
   template <int Id>
   static constexpr state_type apply(const state_type &state,
-                                    const PositionChanged<Id> &event) {
+                                    const PositionChanged &event) {
     return {state.grid, event.position};
   }
 
