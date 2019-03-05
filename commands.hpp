@@ -48,18 +48,6 @@ struct SetShipRotation {
   radian_t angle;
 };
 
-struct CreateRigidBody {
-  CorrelationId correlation_id;
-  EntityId entity_id;
-  kilogram_t mass;
-};
-
-struct ApplyForce {
-  CorrelationId correlation_id;
-  EntityId entity_id;
-  tensor<newton_t> force;
-};
-
 struct MoveEntity {
   CorrelationId correlation_id;
   EntityId entity_id;

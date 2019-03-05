@@ -91,9 +91,9 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Process EntityCreated -> [CreateRigidBody]
-  static std::vector<CreateRigidBody> process(const state_type &state,
-                                              const EntityCreated &evt) {
+  // Process EntityCreated -> [RigidBody::Create]
+  static std::vector<RigidBody::Create> process(const state_type &state,
+                                                const EntityCreated &evt) {
     const auto player_id = evt.correlation_id;
     if (state.players.find(player_id)) {
       const auto entity_id = state.players[player_id].root_entity_id;
@@ -105,7 +105,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // Apply RigidBodyCreated
   static state_type apply(const state_type &state,
-                          const RigidBodyCreated &evt) {
+                          const RigidBody::Created &evt) {
     std::cout << "Player " << evt.correlation_id << " created!" << std::endl;
     return state;
   }
@@ -123,8 +123,8 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Process ThrusterActivated -> RigidBody::ApplyForce
-  static ApplyForce process(const state_type &state,
-                            const ThrusterActivated &evt) {
+  static RigidBody::ApplyForce process(const state_type &state,
+                                       const ThrusterActivated &evt) {
     using namespace units::math;
     const auto &player = state.players[evt.player_id];
     const auto rotation = player.rotation;
