@@ -42,6 +42,7 @@ struct RigidBody {
   // Execute ApplyForce -> RigidBodyForceApplied
   static RigidBodyForceApplied execute(const state_type &state,
                                        const ApplyForce &command) {
+    std::cout << "Force applied " << command.entity_id << std::endl;
     return {command.correlation_id, command.entity_id, command.force};
   }
 
@@ -84,8 +85,10 @@ struct RigidBody {
                                          const TimeAdvanced &event) {
     std::vector<MoveEntity> commands;
     for (auto [entity_id, rb] : state.components) {
-      auto position = rb.velocity * event.dt;
-      commands.push_back({event.correlation_id, entity_id, position});
+      if (rb.velocity.x != 0_mps && rb.velocity.y != 0_mps) {
+        auto position = rb.velocity * event.dt;
+        commands.push_back({event.correlation_id, entity_id, position});
+      }
     }
     return commands;
   }

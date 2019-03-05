@@ -30,13 +30,13 @@ template <typename Gui> struct PlayerProjection {
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const PositionChanged &event) {
+  static void project(Gui &gui, const EntityPositionChanged &event) {
     sf::Sprite ship;
     ship.setTexture(gui.shipTexture);
     {
       const auto bounds = ship.getLocalBounds();
-      const float scale_x = event.size.x / bounds.width * scale_factor;
-      const float scale_y = event.size.y / bounds.height * scale_factor;
+      const float scale_x = 1_m / bounds.width * scale_factor;
+      const float scale_y = 1_m / bounds.height * scale_factor;
       ship.scale(scale_x, scale_y);
     }
     {
@@ -76,7 +76,7 @@ template <typename Gui> struct CameraProjection {
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const PositionChanged &event) {
+  static void project(Gui &gui, const EntityPositionChanged &event) {
     const float x = event.position.x * scale_factor;
     const float y = event.position.y * scale_factor;
 
@@ -155,27 +155,14 @@ int main() {
 
   Gui gui;
 
-  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>,
-                                       CameraProjection<Gui>, Map,
-                                       MapProjection<Gui>, Collision, Thruster,
-                                       MouseAim, Entity, Time, RigidBody>(gui);
+  auto ctx =
+      event_sauce::make_context<Player, PlayerProjection<Gui>,
+                                CameraProjection<Gui>, Map, MapProjection<Gui>,
+                                MouseAim, Entity, Time, RigidBody>(gui);
   const auto maze = kruskal<10, 10, 10>();
-  /*
-std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
-std::transform(maze.begin(), maze.end(), std::back_inserter(map),
-[](const auto &segment) {
-const auto p0 = std::get<0>(segment);
-const auto p1 = std::get<1>(segment);
-auto s0 = tensor<meter_t>{meter_t(p0.first * 10),
-                   meter_t(p0.second * 10)};
-auto s1 = tensor<meter_t>{meter_t(p1.first * 10),
-                   meter_t(p1.second * 10)};
-return std::make_tuple(s0, s1);
-});
-  */
+
   ctx.dispatch(CreateMap{std::move(maze)});
-  ctx.dispatch(CreateEntity{12});
-  ctx.dispatch(CreateRigidBody{0, 12, 1_kg});
+  ctx.dispatch(Player::Create{999});
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
@@ -184,19 +171,11 @@ return std::make_tuple(s0, s1);
       if (event.type == sf::Event::Closed) {
         gui.window.close();
       }
-      if (event.type == sf::Event::MouseButtonPressed) {
-        if (event.mouseButton.button == sf::Mouse::Left) {
-          ctx.dispatch(ActivateThruster{0});
-        }
-      }
-      if (event.type == sf::Event::MouseButtonReleased) {
-        if (event.mouseButton.button == sf::Mouse::Left) {
-          ctx.dispatch(DeactivateThruster{0});
-        }
-      }
     }
 
-    ctx.dispatch(ApplyForce{0, 12, {10_N, 10_N}});
+    if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+      ctx.dispatch(Player::ActivateThruster{999});
+    }
 
     gui.window.clear(sf::Color::Black);
     const auto now = std::chrono::high_resolution_clock::now();
@@ -209,7 +188,7 @@ return std::make_tuple(s0, s1);
     const auto look_vector = mouse_position - ship_position;
     const auto angle = radian_t{std::atan2(look_vector.y, look_vector.x)};
     ctx.dispatch(SetShipRotation{0, angle});
-
+    ctx.dispatch(SetEntityRotation{0, 12, angle});
     gui.draw();
     gui.window.display();
   }

@@ -1,27 +1,12 @@
 #pragma once
 #include "../commands.hpp"
 #include "../common/units.hpp"
+#include "entity.hpp"
 #include "main_thruster.hpp"
 #include "mouse_aim.hpp"
+#include "rigid_body.hpp"
 #include <tuple>
 #include <variant>
-
-// Events
-
-struct TorqueChanged {
-  bool left_thruster_activated;
-  bool right_thruster_activated;
-  newton_meter_t torque;
-};
-
-struct VelocityChanged {
-  tensor<mps_t> velocity;
-};
-
-struct PositionChanged {
-  tensor<meter_t> position;
-  tensor<meter_t> size;
-};
 
 /*******************************************************************************
  ** Player
@@ -29,79 +14,124 @@ struct PositionChanged {
 struct Player {
 public:
   static constexpr auto project = [] {}; // Disabled
-  static constexpr auto process = [] {}; // Disabled
 
-  // State
-  struct state_type {
-    static constexpr auto initial_inertia = kilogram_meters_squared_t{1.0};
-    kilogram_t mass = 1.0_kg;
-    radian_t rotation = 0_rad;
-    tensor<mps_t> velocity = {0_mps, 0_mps};
-    tensor<meter_t> position = {1.0_m, 1.0_m};
-    tensor<meter_t> size = {1.0_m, 1.0_m};
-    newton_t thrust = 0_N;
+  //////////////////////////////////////////////////////////////////////////////
+  // Commands
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct Create {
+    CorrelationId player_id;
+  };
+
+  struct ActivateThruster {
+    CorrelationId player_id;
   };
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute Tick -> VelocityChanged & PositionChanged
-  static constexpr std::tuple<VelocityChanged, PositionChanged>
-  execute(const state_type &state, const Tick &command) {
-    const auto velocity = update_velocity(state, command.dt);
-    const auto position = update_position(state, command.dt);
-    return {{velocity}, {position, state.size}};
+  // Events
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct Created {
+    CorrelationId player_id;
+  };
+
+  struct ThrusterActivated {
+    CorrelationId player_id;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // State
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct state_type {
+    newton_t thrust = 10_N;
+    EntityId root_entity_id;
+    CorrelationId player_id;
+    radian_t rotation;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Creation Behaviour
+  //////////////////////////////////////////////////////////////////////////////
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute Created -> Created
+  static constexpr Created execute(const state_type &state, const Create &cmd) {
+    return {cmd.player_id};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Apply ThrustChanged
+  // Apply Created
   static constexpr state_type apply(const state_type &state,
-                                    const ThrustChanged &event) {
+                                    const Created &evt) {
     state_type next = state;
-    next.thrust = event.thrust;
+    next.player_id = evt.player_id;
     return next;
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Apply VelocityChanged
+  // Process Created -> CreateEntity
+  static constexpr CreateEntity process(const state_type &state,
+                                        const Created &evt) {
+    return {state.player_id};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply EntityCreated
   static constexpr state_type apply(const state_type &state,
-                                    const VelocityChanged &event) {
+                                    const EntityCreated &evt) {
+    if (evt.correlation_id == state.player_id) {
+      state_type next = state;
+      next.root_entity_id = evt.entity_id;
+      return next;
+    }
+    return state;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Process EntityCreated -> [CreateRigidBody]
+  static std::vector<CreateRigidBody> process(const state_type &state,
+                                              const EntityCreated &evt) {
+    if (evt.correlation_id == state.player_id) {
+      return {{evt.correlation_id, state.root_entity_id, 1_kg}};
+    }
+    return {};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply RigidBodyCreated
+  static state_type apply(const state_type &state,
+                          const RigidBodyCreated &evt) {
+    std::cout << "Player " << evt.correlation_id << " created!" << std::endl;
+    return state;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Control Behaviour
+  //////////////////////////////////////////////////////////////////////////////
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute ActivateThruster -> ThrusterActivated
+  static ThrusterActivated execute(const state_type &state,
+                                   const ActivateThruster &evt) {
+    return {evt.player_id};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Process ThrusterActivated -> RigidBody::ApplyForce
+  static ApplyForce process(const state_type &state,
+                            const ThrusterActivated &evt) {
+    using namespace units::math;
+    const auto rotation = state.rotation;
+    const auto direction = tensor<float>{cos(rotation), sin(rotation)};
+    const auto thrust = direction * state.thrust;
+    return {state.player_id, state.root_entity_id, thrust};
+  }
+
+  static state_type apply(const state_type &state,
+                          const EntityRotationChanged &evt) {
     state_type next = state;
-    next.velocity = event.velocity;
+    next.rotation = evt.rotation;
     return next;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Apply PositionChanged
-  static constexpr state_type apply(const state_type &state,
-                                    const PositionChanged &event) {
-    state_type next = state;
-    next.position = event.position;
-    return next;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Apply ShipRotationChanged
-  static constexpr state_type apply(const state_type &state,
-                                    const ShipRotationChanged &event) {
-    state_type next = state;
-    next.rotation = event.angle;
-    return next;
-  }
-
-private:
-  //////////////////////////////////////////////////////////////////////////////
-  // update_velocity
-  static constexpr tensor<mps_t> update_velocity(const state_type &state,
-                                                 const second_t &dt) {
-    const mps_t velocity_change_abs = (state.thrust / state.mass) * dt;
-    return {state.velocity.x + cos(state.rotation) * velocity_change_abs,
-            state.velocity.y + sin(state.rotation) * velocity_change_abs};
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // update_position
-  static constexpr tensor<meter_t> update_position(const state_type &state,
-                                                   const second_t &dt) {
-    return {state.position.x + state.velocity.x * dt,
-            state.position.y + state.velocity.y * dt};
   }
 };

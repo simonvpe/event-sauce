@@ -16,7 +16,7 @@ struct Collision {
     MapUpdated::Grid grid;
     tensor<meter_t> player_position;
   };
-
+  /*
   static std::variant<std::monostate, PlayerCollided>
   execute(const state_type &state, const Tick &event) {
     const auto _px = state.player_position.x;
@@ -48,4 +48,5 @@ struct Collision {
                                     const MapUpdated &event) {
     return {event.grid};
   }
+  */
 };

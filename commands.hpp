@@ -65,3 +65,15 @@ struct MoveEntity {
   EntityId entity_id;
   tensor<meter_t> distance;
 };
+
+struct RotateEntity {
+  CorrelationId correlation_id;
+  EntityId entity_id;
+  radian_t angle;
+};
+
+struct SetEntityRotation {
+  CorrelationId correlation_id;
+  EntityId entity_id;
+  radian_t rotation;
+};
