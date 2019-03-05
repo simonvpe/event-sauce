@@ -130,6 +130,31 @@ template <typename Aggregate, typename ReadModel> struct AggregateProject {
   }
 };
 
+template <typename Aggregate> struct AggregateProcess {
+  using state_type = typename Aggregate::state_type;
+  state_type &state;
+
+  AggregateProcess(state_type &state) : state{state} {}
+
+  template <typename Event, typename Dispatch>
+  auto operator()(const Event &evt, Dispatch dispatch) {
+    return (*this)(evt, dispatch, 0);
+  }
+
+  template <typename Event, typename Dispatch>
+  auto operator()(const Event &evt, Dispatch dispatch, int)
+      -> decltype(Aggregate::process(state, evt)) {
+    auto command = Aggregate::process(state, evt);
+    dispatch(command);
+    return command;
+  }
+
+  template <typename Event, typename Dispatch>
+  int operator()(const Event &evt, Dispatch, long) const {
+    return 0;
+  }
+};
+
 // utility function to accumulate over a tuple
 template <typename Op, typename Val, typename T, typename... Ts>
 inline auto tuple_accumulate(Op op, Val val, std::tuple<T, Ts...> &&tuple) {
@@ -188,16 +213,40 @@ template <typename ReadModel, typename... Aggregates> struct Context {
         std::get<typename Aggregates::state_type>(state)}(cmd)...);
 
     // Publish events
-    auto wrap = [this](auto &&evt) {
+    auto publish = [this](auto &&evt) {
       this->router.publish(std::move(evt));
       return 0;
     };
 
     std::apply(
-        [&wrap](auto &&... xs) {
-          return std::make_tuple(wrap(std::move(xs))...);
+        [&publish](auto &&... xs) {
+          return std::make_tuple(publish(std::move(xs))...);
         },
         events);
+
+    // Process manager dispatch
+    auto do_dispatch = [this](const auto &evt) {
+      auto callback = [this](const auto &cmd) {
+        this->dispatch(cmd);
+        return 0;
+      };
+      std::make_tuple(AggregateProcess<Aggregates>{
+          std::get<typename Aggregates::state_type>(state)}(evt, callback)...);
+      return 0;
+    };
+
+    std::apply(
+        [&do_dispatch](auto &&... xs) {
+          return std::make_tuple(do_dispatch(std::move(xs))...);
+        },
+        events);
+  }
+
+  template <typename Command>
+  void dispatch(const std::vector<Command> &commands) {
+    for (const auto &cmd : commands) {
+      dispatch(cmd);
+    }
   }
 
   template <typename Aggregate> auto inspect() const {

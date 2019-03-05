@@ -13,7 +13,8 @@ struct ThrustChanged {
 };
 
 struct Thruster {
-  static constexpr auto project = [] {}; // disabled
+  static constexpr auto project = [] {}; // Disabled
+  static constexpr auto process = [] {}; // Disabled
 
   struct state_type {
     newton_t thrust;

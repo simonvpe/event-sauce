@@ -2,6 +2,7 @@
 #include "common/units.hpp"
 #include <vector>
 
+using EntityId = int;
 using CorrelationId = int;
 
 class PlayerId {
@@ -19,7 +20,7 @@ private:
 };
 
 struct CreateEntity {
-  CorrelationId correlationId;
+  CorrelationId correlation_id;
 };
 
 struct ActivateThruster {
@@ -38,10 +39,29 @@ struct CreateMap {
 };
 
 struct Tick {
+  CorrelationId correlation_id;
   second_t dt;
 };
 
 struct SetShipRotation {
   PlayerId player;
   radian_t angle;
+};
+
+struct CreateRigidBody {
+  CorrelationId correlation_id;
+  EntityId entity_id;
+  kilogram_t mass;
+};
+
+struct ApplyForce {
+  CorrelationId correlation_id;
+  EntityId entity_id;
+  tensor<newton_t> force;
+};
+
+struct MoveEntity {
+  CorrelationId correlation_id;
+  EntityId entity_id;
+  tensor<meter_t> distance;
 };

@@ -9,8 +9,8 @@ struct PlayerCollided {
 };
 
 struct Collision {
-
   static constexpr auto project = [] {};
+  static constexpr auto process = [] {};
 
   struct state_type {
     MapUpdated::Grid grid;

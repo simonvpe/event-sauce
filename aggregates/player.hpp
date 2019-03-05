@@ -28,7 +28,8 @@ struct PositionChanged {
  *******************************************************************************/
 struct Player {
 public:
-  static constexpr auto project = [] {}; // disabled
+  static constexpr auto project = [] {}; // Disabled
+  static constexpr auto process = [] {}; // Disabled
 
   // State
   struct state_type {

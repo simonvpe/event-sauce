@@ -2,6 +2,8 @@
 #include "aggregates/map.hpp"
 #include "aggregates/mouse_aim.hpp"
 #include "aggregates/player.hpp"
+#include "aggregates/rigid_body.hpp"
+#include "aggregates/time.hpp"
 #include "vendor/event-sauce.hpp"
 #include <chrono>
 #include <iostream>
@@ -23,6 +25,7 @@ static constexpr auto scale_factor = 100.0f;
 template <typename Gui> struct PlayerProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
+  constexpr static auto process = event_sauce::disabled;
   struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
@@ -68,6 +71,7 @@ template <typename Gui> struct PlayerProjection {
 template <typename Gui> struct CameraProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
+  constexpr static auto process = event_sauce::disabled;
   struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
@@ -88,6 +92,7 @@ template <typename Gui> struct CameraProjection {
 template <typename Gui> struct MapProjection {
   constexpr static auto execute = event_sauce::disabled;
   constexpr static auto apply = event_sauce::disabled;
+  constexpr static auto process = event_sauce::disabled;
   struct state_type {};
 
   //////////////////////////////////////////////////////////////////////////////
@@ -150,10 +155,10 @@ int main() {
 
   Gui gui;
 
-  auto ctx =
-      event_sauce::make_context<Player, PlayerProjection<Gui>,
-                                CameraProjection<Gui>, Map, MapProjection<Gui>,
-                                Collision, Thruster, MouseAim>(gui);
+  auto ctx = event_sauce::make_context<Player, PlayerProjection<Gui>,
+                                       CameraProjection<Gui>, Map,
+                                       MapProjection<Gui>, Collision, Thruster,
+                                       MouseAim, Entity, Time, RigidBody>(gui);
   const auto maze = kruskal<10, 10, 10>();
   /*
 std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
@@ -169,6 +174,8 @@ return std::make_tuple(s0, s1);
 });
   */
   ctx.dispatch(CreateMap{std::move(maze)});
+  ctx.dispatch(CreateEntity{12});
+  ctx.dispatch(CreateRigidBody{0, 12, 1_kg});
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {
@@ -189,9 +196,11 @@ return std::make_tuple(s0, s1);
       }
     }
 
+    ctx.dispatch(ApplyForce{0, 12, {10_N, 10_N}});
+
     gui.window.clear(sf::Color::Black);
     const auto now = std::chrono::high_resolution_clock::now();
-    ctx.dispatch(Tick{now - t});
+    ctx.dispatch(Tick{0, now - t});
     t = now;
 
     const auto mouse_position =

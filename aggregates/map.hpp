@@ -14,6 +14,7 @@ struct MapUpdated {
 
 struct Map {
   static constexpr auto project = [] {}; // disabled
+  static constexpr auto process = [] {}; // disabled
 
   struct state_type {
     CreateMap::Grid grid;

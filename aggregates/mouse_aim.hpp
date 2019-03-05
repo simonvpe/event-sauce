@@ -13,6 +13,7 @@ struct ShipRotationChanged {
 struct MouseAim {
 public:
   static constexpr auto project = [] {}; // disabled
+  static constexpr auto process = [] {}; // disabled
 
   struct state_type {
     radian_t angle;
