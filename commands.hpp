@@ -2,6 +2,8 @@
 #include "common/units.hpp"
 #include <vector>
 
+using CorrelationId = int;
+
 class PlayerId {
 public:
   constexpr PlayerId(int value) : value{value} {
@@ -14,6 +16,10 @@ public:
 
 private:
   int value;
+};
+
+struct CreateEntity {
+  CorrelationId correlationId;
 };
 
 struct ActivateThruster {
