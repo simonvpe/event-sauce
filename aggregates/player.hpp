@@ -2,8 +2,6 @@
 #include "../commands.hpp"
 #include "../common/units.hpp"
 #include "entity.hpp"
-#include "main_thruster.hpp"
-#include "mouse_aim.hpp"
 #include "rigid_body.hpp"
 #include <immer/map.hpp>
 #include <tuple>

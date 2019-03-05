@@ -19,15 +19,6 @@ private:
   int value;
 };
 
-struct ActivateThruster {
-  PlayerId player;
-  static constexpr newton_t thrust = 10.0_N;
-};
-
-struct DeactivateThruster {
-  PlayerId player;
-};
-
 struct CreateMap {
   using Grid = std::array<std::array<bool, 100>, 100>;
   static constexpr meter_t cell_width = 1_m;
