@@ -79,8 +79,8 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Apply EntityCreated
-  static state_type apply(const state_type &state, const EntityCreated &evt) {
+  // Apply Entity::Created
+  static state_type apply(const state_type &state, const Entity::Created &evt) {
     if (state.players.find(evt.correlation_id)) {
       auto player = player_t{10_N, evt.entity_id, 0_rad};
       state_type next = state;
@@ -91,9 +91,9 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Process EntityCreated -> [RigidBody::Create]
+  // Process Entity::Created -> [RigidBody::Create]
   static std::vector<RigidBody::Create> process(const state_type &state,
-                                                const EntityCreated &evt) {
+                                                const Entity::Created &evt) {
     const auto player_id = evt.correlation_id;
     if (state.players.find(player_id)) {
       const auto entity_id = state.players[player_id].root_entity_id;
@@ -133,8 +133,11 @@ public:
     return {evt.player_id, player.root_entity_id, thrust};
   }
 
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply Entity::RotationChanged
   static state_type apply(const state_type &state,
-                          const EntityRotationChanged &evt) {
+                          const Entity::RotationChanged &evt) {
+
     if (const auto *p = state.players.find(evt.correlation_id)) {
       player_t player = *p;
       player.rotation = evt.rotation;

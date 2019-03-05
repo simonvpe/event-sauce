@@ -30,7 +30,7 @@ template <typename Gui> struct PlayerProjection {
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const EntityPositionChanged &event) {
+  static void project(Gui &gui, const Entity::PositionChanged &event) {
     sf::Sprite ship;
     ship.setTexture(gui.shipTexture);
     {
@@ -59,7 +59,7 @@ template <typename Gui> struct PlayerProjection {
     }
   }
 
-  static void project(Gui &gui, const EntityRotationChanged &event) {
+  static void project(Gui &gui, const Entity::RotationChanged &event) {
     degree_t angle = event.rotation;
     gui.ship_rotation = angle.to<float>() + 90.0f;
   }
@@ -76,7 +76,7 @@ template <typename Gui> struct CameraProjection {
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply PositionChanged
-  static void project(Gui &gui, const EntityPositionChanged &event) {
+  static void project(Gui &gui, const Entity::PositionChanged &event) {
     const float x = event.position.x * scale_factor;
     const float y = event.position.y * scale_factor;
 
