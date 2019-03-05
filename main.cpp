@@ -1,6 +1,5 @@
 #include "aggregates/collision.hpp"
 #include "aggregates/map.hpp"
-#include "aggregates/mouse_aim.hpp"
 #include "aggregates/player.hpp"
 #include "aggregates/rigid_body.hpp"
 #include "aggregates/time.hpp"
@@ -158,7 +157,7 @@ int main() {
   auto ctx =
       event_sauce::make_context<Player, PlayerProjection<Gui>,
                                 CameraProjection<Gui>, Map, MapProjection<Gui>,
-                                MouseAim, Entity, Time, RigidBody>(gui);
+                                Entity, Time, RigidBody>(gui);
   const auto maze = kruskal<10, 10, 10>();
 
   ctx.dispatch(CreateMap{std::move(maze)});
