@@ -187,7 +187,7 @@ int main() {
     const auto ship_position = gui.ship_position;
     const auto look_vector = mouse_position - ship_position;
     const auto angle = radian_t{std::atan2(look_vector.y, look_vector.x)};
-    ctx.dispatch(SetEntityRotation{999, 0, angle});
+    ctx.dispatch(Entity::SetRotation{999, 0, angle});
     gui.draw();
     gui.window.display();
   }

@@ -73,8 +73,8 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Process Created -> CreateEntity
-  static CreateEntity process(const state_type &state, const Created &evt) {
+  // Process Created -> Entity::Create
+  static Entity::Create process(const state_type &state, const Created &evt) {
     return {evt.player_id};
   }
 

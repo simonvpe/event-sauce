@@ -104,10 +104,10 @@ struct RigidBody {
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Process TimeAdvanced
-  static std::vector<MoveEntity> process(const state_type &state,
-                                         const TimeAdvanced &event) {
-    std::vector<MoveEntity> commands;
+  // Process TimeAdvanced -> [Entity::Move]
+  static std::vector<Entity::Move> process(const state_type &state,
+                                           const TimeAdvanced &event) {
+    std::vector<Entity::Move> commands;
     for (auto [entity_id, rb] : state.components) {
       if (rb.velocity.x != 0_mps && rb.velocity.y != 0_mps) {
         auto position = rb.velocity * event.dt;

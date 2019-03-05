@@ -19,10 +19,6 @@ private:
   int value;
 };
 
-struct CreateEntity {
-  CorrelationId correlation_id;
-};
-
 struct ActivateThruster {
   PlayerId player;
   static constexpr newton_t thrust = 10.0_N;
@@ -48,20 +44,3 @@ struct SetShipRotation {
   radian_t angle;
 };
 
-struct MoveEntity {
-  CorrelationId correlation_id;
-  EntityId entity_id;
-  tensor<meter_t> distance;
-};
-
-struct RotateEntity {
-  CorrelationId correlation_id;
-  EntityId entity_id;
-  radian_t angle;
-};
-
-struct SetEntityRotation {
-  CorrelationId correlation_id;
-  EntityId entity_id;
-  radian_t rotation;
-};

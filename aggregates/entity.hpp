@@ -13,6 +13,28 @@ public:
   // Commands
   //////////////////////////////////////////////////////////////////////////////
 
+  struct Create {
+    CorrelationId correlation_id;
+  };
+
+  struct Move {
+    CorrelationId correlation_id;
+    EntityId entity_id;
+    tensor<meter_t> distance;
+  };
+
+  struct Rotate {
+    CorrelationId correlation_id;
+    EntityId entity_id;
+    radian_t angle;
+  };
+
+  struct SetRotation {
+    CorrelationId correlation_id;
+    EntityId entity_id;
+    radian_t rotation;
+  };
+
   //////////////////////////////////////////////////////////////////////////////
   // Events
   //////////////////////////////////////////////////////////////////////////////
@@ -50,33 +72,32 @@ public:
   };
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute CreateEntity -> Created
-  static Created execute(const state_type &state, const CreateEntity &command) {
+  // Execute Create -> Created
+  static Created execute(const state_type &state, const Create &command) {
     return {command.correlation_id, state.next_unused_entity_id};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute MoveEntity -> EntityMoved
-  static PositionChanged execute(const state_type &state,
-                                 const MoveEntity &command) {
+  // Execute Move -> EntityMoved
+  static PositionChanged execute(const state_type &state, const Move &command) {
     auto position = state.entities[command.entity_id].position;
     position += command.distance;
     return {command.correlation_id, command.entity_id, position};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute RotateEntity -> RotationChanged
+  // Execute Rotate -> RotationChanged
   static RotationChanged execute(const state_type &state,
-                                 const RotateEntity &command) {
+                                 const Rotate &command) {
     auto rotation = state.entities[command.entity_id].rotation;
     rotation += command.angle;
     return {command.correlation_id, command.entity_id, rotation};
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Execute SetEntityRotation -> RotationChanged
+  // Execute SetRotation -> RotationChanged
   static RotationChanged execute(const state_type &state,
-                                 const SetEntityRotation &command) {
+                                 const SetRotation &command) {
     return {command.correlation_id, command.entity_id, command.rotation};
   }
 
