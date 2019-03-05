@@ -1,5 +1,6 @@
 #include "aggregates/collision.hpp"
 #include "aggregates/map.hpp"
+#include "aggregates/mouse_aim.hpp"
 #include "aggregates/player.hpp"
 #include "vendor/event-sauce.hpp"
 #include <chrono>
@@ -40,14 +41,12 @@ template <int Id, typename Gui> struct PlayerProjection {
       ship.setOrigin(bounds.width / 2, bounds.height / 2);
     }
     {
-      const degree_t rotation = event.rotation;
-      ship.setRotation(rotation.to<float>() + 90.0f);
-    }
-    {
       const float x = event.position.x * scale_factor;
       const float y = event.position.y * scale_factor;
       ship.move({x, y});
+      gui.ship_position = {x, y};
     }
+    { ship.setRotation(gui.ship_rotation); }
     gui.window.draw(ship);
 
     for (const auto &row : gui.tiles) {
@@ -55,6 +54,11 @@ template <int Id, typename Gui> struct PlayerProjection {
         gui.window.draw(sprite);
       }
     }
+  }
+
+  static void project(Gui &gui, const ShipRotationChanged &event) {
+    degree_t angle = event.angle;
+    gui.ship_rotation = angle.to<float>() + 90.0f;
   }
 };
 
@@ -119,6 +123,8 @@ struct Gui {
   sf::Texture shipTexture;
   std::vector<sf::VertexArray> map;
   sf::Sprite ship;
+  double ship_rotation = 0.0f;
+  sf::Vector2<float> ship_position;
   std::array<std::array<sf::RectangleShape, 100>, 100> tiles;
 
   Gui() : window{sf::VideoMode(800, 600), "My window"} {
@@ -151,7 +157,7 @@ int main() {
   auto ctx =
       event_sauce::make_context<Player_0, PlayerProjection_0,
                                 CameraProjection_0, Map, MapProjection<Gui>,
-                                Collision, MainThruster>(gui);
+                                Collision, MainThruster, MouseAim>(gui);
   const auto maze = kruskal<10, 10, 10>();
   /*
 std::vector<std::tuple<tensor<meter_t>, tensor<meter_t>>> map;
@@ -175,26 +181,14 @@ return std::make_tuple(s0, s1);
       if (event.type == sf::Event::Closed) {
         gui.window.close();
       }
-      if (event.type == sf::Event::KeyPressed) {
-        if (event.key.code == sf::Keyboard::Up) {
+      if (event.type == sf::Event::MouseButtonPressed) {
+        if (event.mouseButton.button == sf::Mouse::Left) {
           ctx.dispatch(ActivateMainThruster{0});
         }
-        if (event.key.code == sf::Keyboard::Left) {
-          ctx.dispatch(ActivateRightThruster<0>{});
-        }
-        if (event.key.code == sf::Keyboard::Right) {
-          ctx.dispatch(ActivateLeftThruster<0>{});
-        }
       }
-      if (event.type == sf::Event::KeyReleased) {
-        if (event.key.code == sf::Keyboard::Up) {
+      if (event.type == sf::Event::MouseButtonReleased) {
+        if (event.mouseButton.button == sf::Mouse::Left) {
           ctx.dispatch(DeactivateMainThruster{0});
-        }
-        if (event.key.code == sf::Keyboard::Left) {
-          ctx.dispatch(DeactivateRightThruster<0>{});
-        }
-        if (event.key.code == sf::Keyboard::Right) {
-          ctx.dispatch(DeactivateLeftThruster<0>{});
         }
       }
     }
@@ -203,6 +197,14 @@ return std::make_tuple(s0, s1);
     const auto now = std::chrono::high_resolution_clock::now();
     ctx.dispatch(Tick{now - t});
     t = now;
+
+    const auto mouse_position =
+        gui.window.mapPixelToCoords(sf::Mouse::getPosition(gui.window));
+    const auto ship_position = gui.ship_position;
+    const auto look_vector = mouse_position - ship_position;
+    const auto angle = radian_t{std::atan2(look_vector.y, look_vector.x)};
+    ctx.dispatch(SetShipRotation{0, angle});
+
     gui.draw();
     gui.window.display();
   }
