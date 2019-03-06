@@ -219,7 +219,6 @@ template <typename ReadModel, typename... Aggregates> struct Context {
 
   template <typename... Command>
   void dispatch(const std::variant<Command...> &command) {
-    std::cout << "Dispatching variant" << std::endl;
     std::visit(DispatchVisitor{*this}, command);
   }
 

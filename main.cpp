@@ -1,4 +1,4 @@
-#include "aggregates/collision.hpp"
+#include "aggregates/collider.hpp"
 #include "aggregates/map.hpp"
 #include "aggregates/player.hpp"
 #include "aggregates/rigid_body.hpp"
@@ -157,7 +157,7 @@ int main() {
   auto ctx =
       event_sauce::make_context<Player, PlayerProjection<Gui>,
                                 CameraProjection<Gui>, Map, MapProjection<Gui>,
-                                Entity, Time, RigidBody>(gui);
+                                Entity, Time, RigidBody, Collider>(gui);
   const auto maze = kruskal<10, 10, 10>();
 
   ctx.dispatch(CreateMap{std::move(maze)});

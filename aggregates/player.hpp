@@ -1,6 +1,7 @@
 #pragma once
 #include "../commands.hpp"
 #include "../common/units.hpp"
+#include "collider.hpp"
 #include "entity.hpp"
 #include "rigid_body.hpp"
 #include <immer/map.hpp>
@@ -89,13 +90,16 @@ public:
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  // Process Entity::Created -> [RigidBody::Create]
-  static std::vector<RigidBody::Create> process(const state_type &state,
-                                                const Entity::Created &evt) {
+  // Process Entity::Created -> [RigidBody::Create | Collider::Create]
+  static std::vector<std::variant<RigidBody::Create, Collider::Create>>
+  process(const state_type &state, const Entity::Created &evt) {
     const auto player_id = evt.correlation_id;
     if (state.players.find(player_id)) {
       const auto entity_id = state.players[player_id].root_entity_id;
-      return {{evt.correlation_id, entity_id, 1_kg}};
+      auto mass = 1_kg;
+      auto box = rectangle<meter_t>{{0_m, 0_m}, {1_m, 1_m}};
+      return {RigidBody::Create{evt.correlation_id, entity_id, std::move(mass)},
+              Collider::Create{evt.correlation_id, entity_id, std::move(box)}};
     }
     return {};
   }

@@ -58,3 +58,5 @@ std::ostream &operator<<(std::ostream &ost, const tensor<T> &t) {
   ost << "(" << t.x << ", " << t.y << ")";
   return ost;
 }
+
+template <typename T> struct rectangle { tensor<T> top_left, bottom_right; };
