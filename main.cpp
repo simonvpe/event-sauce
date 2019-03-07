@@ -162,6 +162,7 @@ int main() {
 
   ctx.dispatch(CreateMap{std::move(maze)});
   ctx.dispatch(Player::Create{999});
+  ctx.dispatch(Player::Create{111});
 
   auto t = std::chrono::high_resolution_clock::now();
   while (gui.window.isOpen()) {

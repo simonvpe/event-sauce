@@ -46,8 +46,8 @@ template <typename T> struct QuadTreeImpl {
   std::optional<immer::box<QuadTreeImpl>> southwest;
   std::optional<immer::box<QuadTreeImpl>> southeast;
 
-  QuadTreeImpl() = default;
-  QuadTreeImpl(meter_t x, meter_t y, meter_t half_dimension, int capacity)
+  QuadTreeImpl(meter_t x = 0_m, meter_t y = 0_m,
+               meter_t half_dimension = 1000_m, int capacity = 4)
       : boundary{x, y, half_dimension}, capacity{capacity} {}
 };
 
@@ -268,6 +268,7 @@ quad_tree<T> move(quad_tree<T> qtree, tensor<meter_t> destination,
   };
   auto range = typename QuadTreeImpl<T>::BoundingBox{destination, search_width};
   if (auto removed = detail::remove_impl(qtree, range, std::move(pred))) {
+    std::cout << "Move " << destination << std::endl;
     return insert(*removed, std::move(pl), destination);
   }
   return qtree;
