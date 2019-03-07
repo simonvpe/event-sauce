@@ -1,9 +1,12 @@
 #pragma once
 #include "../commands.hpp"
+#include "../common/qtree.hpp"
 #include "../common/units.hpp"
 #include "entity.hpp"
 #include "time.hpp"
+#include <immer/box.hpp>
 #include <immer/map.hpp>
+#include <immer/vector.hpp>
 
 struct Collider {
   static constexpr auto project = [] {};
@@ -47,6 +50,47 @@ struct Collider {
   //////////////////////////////////////////////////////////////////////////////
   // Execute Create -> Created
   static Created execute(const state_type &state, const Create &command) {
+    auto qtree = make_qtree({0_m, 0_m, 100_m}, 4);
+    auto next = insert(qtree, 0, {1_m, 1_m});
+    next = insert(next, 1, {2_m, 2_m});
+    next = insert(next, 2, {3_m, 3_m});
+    next = insert(next, 3, {4_m, 4_m});
+    next = insert(next, 4, {5_m, 5_m});
+    next = insert(next, 5, {5_m, 5_m});
+    next = insert(next, 6, {5_m, 5_m});
+    next = insert(next, 7, {5_m, 5_m});
+    next = insert(next, 8, {5_m, 5_m});
+    next = insert(next, 9, {5_m, 5_m});
+    next = insert(next, 10, {5.5_m, 5_m});
+    {
+      auto points = query(next, {3_m, 3_m, 3_m});
+      std::cout << points.size() << std::endl;
+      for (const auto &point : points) {
+        std::cout << "Found " << point.identifier << " @ " << point.position
+                  << std::endl;
+      }
+    }
+    for (auto i = 0; i < 11; ++i) {
+      next = remove(next, i, {0_m, 0_m, 10_m});
+    }
+    //next = move(next, 4, {0_m, 0_m}, 10_m);
+    {
+      auto points = query(next, {3_m, 3_m, 3_m});
+      std::cout << points.size() << std::endl;
+      for (const auto &point : points) {
+        std::cout << "Found " << point.identifier << " @ " << point.position
+                  << std::endl;
+      }
+    }
+    std::cout << "southwest=" << (bool)next->southwest << std::endl;
+
+    /*
+    auto q = query(next, {3_m, 3_m, 1_m},
+                   [](const auto &entity_id) { return entity_id == 2; });
+    if (q) {
+      std::cout << "Queried " << std::get<EntityId>(*q) << std::endl;
+    }
+    */
     return {command.correlation_id, command.entity_id, command.bounding_box};
   }
 

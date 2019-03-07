@@ -1,6 +1,7 @@
 #pragma once
 #include "units.hpp"
 #include <immer/box.hpp>
+#include <immer/flex_vector.hpp>
 #include <immer/vector.hpp>
 #include <optional>
 
@@ -36,7 +37,7 @@ struct QuadTree {
   BoundingBox boundary;
   int capacity;
   bool subdivided = false;
-  immer::vector<Entity> entities;
+  immer::flex_vector<Entity> entities;
   std::optional<immer::box<QuadTree>> northwest;
   std::optional<immer::box<QuadTree>> northeast;
   std::optional<immer::box<QuadTree>> southwest;
@@ -90,7 +91,7 @@ std::optional<immer::box<QuadTree>> insert_impl(immer::box<QuadTree> qtree,
 
   // If there is space in this quad tree and if it doesn't have subdivisions,
   // add the object here
-  if (qtree->entities.size() < qtree->capacity && !qtree->subdivided) {
+  if (qtree->entities.size() < qtree->capacity) {
     return qtree.update([identifier, position](auto qtree) {
       qtree.entities = qtree.entities.push_back({position, identifier});
       return qtree;
@@ -101,40 +102,104 @@ std::optional<immer::box<QuadTree>> insert_impl(immer::box<QuadTree> qtree,
     qtree = subdivide(qtree);
   }
 
-  qtree = qtree.update([identifier, position](auto qtree) {
+  bool done = false;
+
+  qtree = qtree.update([identifier, position, &done](auto qtree) {
     if (auto nw = insert_impl(*qtree.northwest, identifier, position)) {
       qtree.northwest = nw;
+      done = true;
     }
     return qtree;
   });
+  if (done) {
+    return qtree;
+  }
 
-  qtree = qtree.update([identifier, position](auto qtree) {
+  qtree = qtree.update([identifier, position, &done](auto qtree) {
     if (auto ne = insert_impl(*qtree.northeast, identifier, position)) {
       qtree.northeast = ne;
+      done = true;
     }
     return qtree;
   });
+  if (done) {
+    return qtree;
+  }
 
-  qtree = qtree.update([identifier, position](auto qtree) {
+  qtree = qtree.update([identifier, position, &done](auto qtree) {
     if (auto sw = insert_impl(*qtree.southwest, identifier, position)) {
       qtree.southwest = sw;
+      done = true;
     }
     return qtree;
   });
+  if (done) {
+    return qtree;
+  }
 
-  qtree = qtree.update([identifier, position](auto qtree) {
+  qtree = qtree.update([identifier, position, &done](auto qtree) {
     if (auto se = insert_impl(*qtree.southeast, identifier, position)) {
       qtree.southeast = se;
+      done = true;
     }
     return qtree;
   });
-
-  if (!qtree->northwest || !qtree->northeast || !qtree->southwest ||
-      !qtree->southeast) {
+  if (!done) {
     throw std::runtime_error{"Failed to insert into qtree"};
   }
 
   return qtree;
+}
+
+std::optional<immer::box<QuadTree>> remove_impl(immer::box<QuadTree> qtree,
+                                                EntityId identifier,
+                                                QuadTree::BoundingBox range) {
+  if (!qtree->boundary.intersects(range)) {
+    return {};
+  }
+  auto i = 0;
+  for (const auto &entity : qtree->entities) {
+    if (entity.identifier == identifier) {
+      return qtree.update([&i](auto qtree) {
+        qtree.entities = qtree.entities.erase(i);
+        return qtree;
+      });
+    }
+    ++i;
+  }
+  if (qtree->northwest) {
+    if (auto nw = remove_impl(*qtree->northwest, identifier, range)) {
+      return qtree.update([nw](auto qtree) {
+        qtree.northwest = nw;
+        return qtree;
+      });
+    }
+  }
+  if (qtree->northeast) {
+    if (auto ne = remove_impl(*qtree->northeast, identifier, range)) {
+      return qtree.update([ne](auto qtree) {
+        qtree.northeast = ne;
+        return qtree;
+      });
+    }
+  }
+  if (qtree->southwest) {
+    if (auto sw = remove_impl(*qtree->southwest, identifier, range)) {
+      return qtree.update([sw](auto qtree) {
+        qtree.southwest = sw;
+        return qtree;
+      });
+    }
+  }
+  if (qtree->southeast) {
+    if (auto se = remove_impl(*qtree->southeast, identifier, range)) {
+      return qtree.update([se](auto qtree) {
+        qtree.southeast = se;
+        return qtree;
+      });
+    }
+  }
+  return {};
 }
 } // namespace detail
 
@@ -175,4 +240,22 @@ immer::vector<QuadTree::Entity> query(immer::box<QuadTree> qtree,
     }
   }
   return entities;
+}
+
+immer::box<QuadTree> remove(immer::box<QuadTree> qtree, EntityId identifier,
+                            QuadTree::BoundingBox range) {
+  if (auto result = detail::remove_impl(qtree, identifier, std::move(range))) {
+    return *result;
+  }
+  return std::move(qtree);
+}
+
+immer::box<QuadTree> move(immer::box<QuadTree> qtree, EntityId identifier,
+                          tensor<meter_t> destination, meter_t search_width) {
+  auto range = QuadTree::BoundingBox{destination, search_width};
+  auto removed = detail::remove_impl(qtree, identifier, range);
+  if (removed) {
+    return insert(*removed, identifier, destination);
+  }
+  return qtree;
 }
