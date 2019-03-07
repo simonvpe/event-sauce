@@ -50,7 +50,7 @@ struct Collider {
   //////////////////////////////////////////////////////////////////////////////
   // Execute Create -> Created
   static Created execute(const state_type &state, const Create &command) {
-    auto qtree = make_qtree<EntityId>({0_m, 0_m, 100_m}, 4);
+    auto qtree = quad_tree<EntityId>(0_m, 0_m, 100_m, 4);
     auto next = insert(qtree, 0, {1_m, 1_m});
     next = insert(next, 1, {2_m, 2_m});
     next = insert(next, 2, {3_m, 3_m});
