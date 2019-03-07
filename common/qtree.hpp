@@ -5,11 +5,11 @@
 #include <immer/vector.hpp>
 #include <optional>
 
-struct QuadTree {
+template <typename T> struct QuadTree {
 
   struct Entity {
     tensor<meter_t> position;
-    EntityId identifier;
+    T identifier;
   };
 
   struct BoundingBox {
@@ -44,8 +44,10 @@ struct QuadTree {
   std::optional<immer::box<QuadTree>> southeast;
 };
 
-immer::box<QuadTree> make_qtree(QuadTree::BoundingBox boundary, int capacity) {
-  immer::box<QuadTree> qtree;
+template <typename T>
+immer::box<QuadTree<T>> make_qtree(typename QuadTree<T>::BoundingBox boundary,
+                                   int capacity) {
+  immer::box<QuadTree<T>> qtree;
   return qtree.update([boundary = std::move(boundary), capacity](auto qtree) {
     qtree.boundary = std::move(boundary);
     qtree.capacity = capacity;
@@ -53,37 +55,41 @@ immer::box<QuadTree> make_qtree(QuadTree::BoundingBox boundary, int capacity) {
   });
 }
 
-immer::box<QuadTree> subdivide(immer::box<QuadTree> qtree) {
+template <typename T>
+immer::box<QuadTree<T>> subdivide(immer::box<QuadTree<T>> qtree) {
   return qtree.update([](auto qtree) {
     const auto x = qtree.boundary.center.x;
     const auto y = qtree.boundary.center.y;
     const auto w = qtree.boundary.half_dimension;
     const auto c = qtree.capacity;
-    qtree.northwest = make_qtree({x - w / 2.0f, y - w / 2.0f, w / 2.0f}, c);
-    qtree.northeast = make_qtree({x + w / 2.0f, y - w / 2.0f, w / 2.0f}, c);
-    qtree.southwest = make_qtree({x - w / 2.0f, y + w / 2.0f, w / 2.0f}, c);
-    qtree.southeast = make_qtree({x + w / 2.0f, y + w / 2.0f, w / 2.0f}, c);
+    qtree.northwest = make_qtree<T>({x - w / 2.0f, y - w / 2.0f, w / 2.0f}, c);
+    qtree.northeast = make_qtree<T>({x + w / 2.0f, y - w / 2.0f, w / 2.0f}, c);
+    qtree.southwest = make_qtree<T>({x - w / 2.0f, y + w / 2.0f, w / 2.0f}, c);
+    qtree.southeast = make_qtree<T>({x + w / 2.0f, y + w / 2.0f, w / 2.0f}, c);
     qtree.subdivided = true;
     return qtree;
   });
 }
 
 // Insert an entity into the qtree
-immer::box<QuadTree> insert(immer::box<QuadTree> qtree, EntityId identifier,
-                            tensor<meter_t> position);
+template <typename T>
+immer::box<QuadTree<T>> insert(immer::box<QuadTree<T>> qtree, T identifier,
+                               tensor<meter_t> position);
 
 // Query the qtree
-immer::vector<QuadTree::Entity> query(immer::box<QuadTree> qtree,
-                                      QuadTree::BoundingBox range);
+template <typename T>
+immer::vector<typename QuadTree<T>::Entity>
+query(immer::box<QuadTree<T>> qtree, typename QuadTree<T>::BoundingBox range);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation details follow
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace detail {
-std::optional<immer::box<QuadTree>> insert_impl(immer::box<QuadTree> qtree,
-                                                EntityId identifier,
-                                                tensor<meter_t> position) {
+template <typename T>
+std::optional<immer::box<QuadTree<T>>>
+insert_impl(immer::box<QuadTree<T>> qtree, T identifier,
+            tensor<meter_t> position) {
   // Ignore objects that do not belong to this quad tree
   if (!qtree->boundary.contains(position)) {
     return {};
@@ -151,9 +157,10 @@ std::optional<immer::box<QuadTree>> insert_impl(immer::box<QuadTree> qtree,
   return qtree;
 }
 
-std::optional<immer::box<QuadTree>> remove_impl(immer::box<QuadTree> qtree,
-                                                EntityId identifier,
-                                                QuadTree::BoundingBox range) {
+template <typename T>
+std::optional<immer::box<QuadTree<T>>>
+remove_impl(immer::box<QuadTree<T>> qtree, T identifier,
+            typename QuadTree<T>::BoundingBox range) {
   if (!qtree->boundary.intersects(range)) {
     return {};
   }
@@ -203,14 +210,16 @@ std::optional<immer::box<QuadTree>> remove_impl(immer::box<QuadTree> qtree,
 }
 } // namespace detail
 
-immer::box<QuadTree> insert(immer::box<QuadTree> qtree, EntityId identifier,
-                            tensor<meter_t> position) {
+template <typename T>
+immer::box<QuadTree<T>> insert(immer::box<QuadTree<T>> qtree, T identifier,
+                               tensor<meter_t> position) {
   return *detail::insert_impl(qtree, identifier, position);
 }
 
-immer::vector<QuadTree::Entity> query(immer::box<QuadTree> qtree,
-                                      QuadTree::BoundingBox range) {
-  immer::vector<QuadTree::Entity> entities;
+template <typename T>
+immer::vector<typename QuadTree<T>::Entity>
+query(immer::box<QuadTree<T>> qtree, typename QuadTree<T>::BoundingBox range) {
+  immer::vector<typename QuadTree<T>::Entity> entities;
   if (!qtree->boundary.intersects(range)) {
     return entities;
   }
@@ -242,17 +251,20 @@ immer::vector<QuadTree::Entity> query(immer::box<QuadTree> qtree,
   return entities;
 }
 
-immer::box<QuadTree> remove(immer::box<QuadTree> qtree, EntityId identifier,
-                            QuadTree::BoundingBox range) {
+template <typename T>
+immer::box<QuadTree<T>> remove(immer::box<QuadTree<T>> qtree, T identifier,
+                               typename QuadTree<T>::BoundingBox range) {
   if (auto result = detail::remove_impl(qtree, identifier, std::move(range))) {
     return *result;
   }
   return std::move(qtree);
 }
 
-immer::box<QuadTree> move(immer::box<QuadTree> qtree, EntityId identifier,
-                          tensor<meter_t> destination, meter_t search_width) {
-  auto range = QuadTree::BoundingBox{destination, search_width};
+template <typename T>
+immer::box<QuadTree<T>> move(immer::box<QuadTree<T>> qtree, T identifier,
+                             tensor<meter_t> destination,
+                             meter_t search_width) {
+  auto range = typename QuadTree<T>::BoundingBox{destination, search_width};
   auto removed = detail::remove_impl(qtree, identifier, range);
   if (removed) {
     return insert(*removed, identifier, destination);
