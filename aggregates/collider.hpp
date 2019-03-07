@@ -66,19 +66,19 @@ struct Collider {
       auto points = query(next, {3_m, 3_m, 3_m});
       std::cout << points.size() << std::endl;
       for (const auto &point : points) {
-        std::cout << "Found " << point.identifier << " @ " << point.position
+        std::cout << "Found " << point.payload << " @ " << point.position
                   << std::endl;
       }
     }
     for (auto i = 0; i < 11; ++i) {
-      next = remove(next, i, {0_m, 0_m, 10_m});
+      next = move(next, {0_m, 0_m}, 10_m, [](int i) { return i == 5; });
     }
-    //next = move(next, 4, {0_m, 0_m}, 10_m);
+    // next = move(next, 4, {0_m, 0_m}, 10_m);
     {
       auto points = query(next, {3_m, 3_m, 3_m});
       std::cout << points.size() << std::endl;
       for (const auto &point : points) {
-        std::cout << "Found " << point.identifier << " @ " << point.position
+        std::cout << "Found " << point.payload << " @ " << point.position
                   << std::endl;
       }
     }
