@@ -27,6 +27,11 @@ public:
     CorrelationId player_id;
   };
 
+  struct SetRotation {
+    CorrelationId player_id;
+    radian_t rotation;
+  };
+
   //////////////////////////////////////////////////////////////////////////////
   // Events
   //////////////////////////////////////////////////////////////////////////////
@@ -121,6 +126,18 @@ public:
   static ThrusterActivated execute(const state_type &state,
                                    const ActivateThruster &evt) {
     return {evt.player_id};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute ChangeRotation -> Entity::RotationChanged
+  static std::variant<std::monostate, Entity::RotationChanged>
+  execute(const state_type &state, const SetRotation &evt) {
+    const auto player_id = evt.player_id;
+    if (state.players.find(player_id)) {
+      const auto entity_id = state.players[player_id].root_entity_id;
+      return Entity::RotationChanged{player_id, entity_id, evt.rotation};
+    }
+    return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////

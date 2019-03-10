@@ -4,6 +4,8 @@
 #include "aggregates/rigid_body.hpp"
 #include "aggregates/time.hpp"
 #include "vendor/event-sauce.hpp"
+#include <imgui.h>
+#include <imgui-SFML.h>
 #include <chrono>
 #include <iostream>
 
@@ -132,6 +134,10 @@ struct Gui {
   std::array<std::array<sf::RectangleShape, 100>, 100> tiles;
 
   Gui() : window{sf::VideoMode(800, 600), "My window"} {
+    window.setVerticalSyncEnabled(true);
+    ImGui::SFML::Init(window);
+    window.resetGLStates();
+
     // if (!font.loadFromFile("/usr/share/doc/dbus-python/_static/fonts/"
     //                        "RobotoSlab/roboto-slab-v7-regular.ttf")) {
     //   throw std::runtime_error{"Failed to load fonts!"};
@@ -164,10 +170,15 @@ int main() {
   ctx.dispatch(Player::Create{999});
   ctx.dispatch(Player::Create{111});
 
+  char windowTitle[256] = "ImGui + SFML = <3";
+  gui.window.setTitle(windowTitle);
+
   auto t = std::chrono::high_resolution_clock::now();
+  sf::Clock deltaClock;
   while (gui.window.isOpen()) {
     sf::Event event;
     while (gui.window.pollEvent(event)) {
+      ImGui::SFML::ProcessEvent(event);
       if (event.type == sf::Event::Closed) {
         gui.window.close();
       }
@@ -176,6 +187,21 @@ int main() {
     if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
       ctx.dispatch(Player::ActivateThruster{999});
     }
+
+    ImGui::SFML::Update(gui.window, deltaClock.restart());
+    ImGui::Begin("Sample window");
+    ImGui::InputText("Window title", windowTitle, 255);
+
+    if (ImGui::Button("Update window title")) {
+      // this code gets if user clicks on the button
+      // yes, you could have written if(ImGui::InputText(...))
+      // but I do this to show how buttons work :)
+      gui.window.setTitle(windowTitle);
+    }
+    ImGui::End(); // end window
+
+    ImGui::Begin("Window 2");
+    ImGui::End();
 
     gui.window.clear(sf::Color::Black);
     const auto now = std::chrono::high_resolution_clock::now();
@@ -187,8 +213,9 @@ int main() {
     const auto ship_position = gui.ship_position;
     const auto look_vector = mouse_position - ship_position;
     const auto angle = radian_t{std::atan2(look_vector.y, look_vector.x)};
-    ctx.dispatch(Entity::SetRotation{999, 0, angle});
+    ctx.dispatch(Player::SetRotation{999, angle});
     gui.draw();
+    ImGui::SFML::Render(gui.window);
     gui.window.display();
   }
 
