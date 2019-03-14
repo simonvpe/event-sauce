@@ -6,6 +6,7 @@ project(SFMLTest)
 
 ## In most cases better set in the CMake cache
 # set(SFML_DIR "<sfml root prefix>/lib/cmake/SFML")
+find_package(Boost REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(SFML 2.5 COMPONENTS graphics audio REQUIRED)
 add_executable(SFMLTest main.cpp)
@@ -25,7 +26,8 @@ target_link_libraries(imgui-sfml
   OpenGL::OpenGL
   sfml-system
   sfml-window
-  sfml-graphics)
+  sfml-graphics
+  boost_serialization)
 
 add_subdirectory(vendor/immer)
 target_link_libraries(SFMLTest immer imgui-sfml)
