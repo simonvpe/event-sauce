@@ -42,7 +42,8 @@ int main() {
   auto ctx = event_sauce::make_context<Player, Entity, Time, RigidBody,
                                        ConnectionPool>(read_model);
 
-  auto server = std::async(std::launch::async, router, endpoint("*"));
+  auto server = std::async(std::launch::async, Router<std::string>::router,
+                           endpoint("*"));
 
   auto client = [](const std::string &name) {
     zmq::context_t zmq{1};
@@ -50,8 +51,8 @@ int main() {
     broker.connect(endpoint("localhost"));
 
     while (true) {
-      publish(broker, "Hello from " + name);
-      const auto evt = receive(broker);
+      Router<std::string>::publish(broker, "Hello from " + name);
+      const auto evt = Router<std::string>::receive(broker);
       std::cout << name << " received " << evt << std::endl;
     }
   };
