@@ -4,9 +4,9 @@
 #include "aggregates/rigid_body.hpp"
 #include "aggregates/time.hpp"
 #include "vendor/event-sauce.hpp"
-#include <imgui.h>
-#include <imgui-SFML.h>
 #include <chrono>
+#include <imgui-SFML.h>
+#include <imgui.h>
 #include <iostream>
 
 /*******************************************************************************
@@ -155,9 +155,32 @@ struct Gui {
   }
 };
 
+#include "vendor/serialize_std_variant.hpp"
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <fstream>
+
+template <typename Archive>
+void serialize(Archive &ar, Player::Created &evt, const unsigned int version) {
+  ar &evt.player_id;
+}
+
 int main() {
   using namespace std::chrono_literals;
 
+  {
+    std::variant<int, Player::Created> evt = Player::Created{12};
+    std::ofstream f{"file"};
+    boost::archive::text_oarchive oa{f};
+    oa << evt;
+  }
+  {
+    std::ifstream f{"file"};
+    boost::archive::text_iarchive ia{f};
+    std::variant<int, Player::Created> evt;
+    ia >> evt;
+    std::cout << "IS PLAYER::  " << std::get<Player::Created>(evt).player_id << std::endl;
+  }
   Gui gui;
 
   auto ctx =
