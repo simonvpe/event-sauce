@@ -42,7 +42,7 @@ int main() {
   auto ctx = event_sauce::make_context<Player, Entity, Time, RigidBody,
                                        ConnectionPool>(read_model);
 
-  auto server = std::async(std::launch::async, Router<std::string>::router,
+  auto server = std::async(std::launch::async, Router<std::string>::event_loop,
                            endpoint("*"));
 
   auto client = [](const std::string &name) {
