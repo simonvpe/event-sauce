@@ -31,6 +31,13 @@ public:
       return std::move(evt);
     }
 
+    static std::string encode(const typename event_type::send_type &evt) {
+      std::ostringstream ss;
+      boost::archive::binary_oarchive oa{ss};
+      oa << evt;
+      return ss.str();
+    }
+
     void event_loop(callback_type cb) {
       while (true) {
         // Recv
@@ -60,8 +67,7 @@ public:
     }
 
     void publish(const typename event_type::message_type &message) {
-      auto msg =
-          event_type::encode(typename event_type::broadcast_type{message});
+      auto msg = encode(typename event_type::broadcast_type{message});
       std::lock_guard<std::mutex> guard{key};
       event_queue.push_back([msg = std::move(msg), this] {
         send_more(this->broker, "");
@@ -71,8 +77,7 @@ public:
 
     void publish(const typename event_type::message_type &message,
                  const typename event_type::identity_type &identity) {
-      auto msg = event_type::encode(
-          typename event_type::targetted_type{identity, message});
+      auto msg = encode(typename event_type::targetted_type{identity, message});
       std::lock_guard<std::mutex> guard{key};
       event_queue.push_back([msg = std::move(msg), this] {
         send_more(this->broker, "");

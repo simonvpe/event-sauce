@@ -65,26 +65,4 @@ template <typename Message> struct event {
       ar & this->message;
     }
   };
-
-  static std::string encode(const event::send_type &evt) {
-    std::ostringstream ss;
-    boost::archive::binary_oarchive oa{ss};
-    oa << evt;
-    return ss.str();
-  }
-
-  static std::string encode(const event::recv_type &evt) {
-    std::ostringstream ss;
-    boost::archive::binary_oarchive oa{ss};
-    oa << evt;
-    return ss.str();
-  }
-
-  static send_type decode(const std::string &str) {
-    event::send_type evt;
-    std::istringstream ss{str};
-    boost::archive::binary_iarchive ia{ss};
-    ia >> evt;
-    return std::move(evt);
-  }
 };

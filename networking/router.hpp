@@ -3,9 +3,25 @@
 #include <immer/set.hpp>
 
 template <typename Message> struct Router {
-public:
+
   using event_type = event<Message>;
 
+  static std::string encode(const typename event_type::recv_type &evt) {
+    std::ostringstream ss;
+    boost::archive::binary_oarchive oa{ss};
+    oa << evt;
+    return ss.str();
+  }
+
+  static typename event_type::send_type decode(const std::string &str) {
+    typename event_type::send_type evt;
+    std::istringstream ss{str};
+    boost::archive::binary_iarchive ia{ss};
+    ia >> evt;
+    return std::move(evt);
+  }
+
+public:
   static auto event_loop(const std::string &endpoint) {
     /***************************************************************************
      ** setup
@@ -21,7 +37,7 @@ public:
       auto identity = recv_one(broker, max_identity_size);
       recv_one(broker, 0); // delimiter
       auto body_parts = recv_one(broker, max_body_parts_size);
-      auto evt = event_type::decode(body_parts);
+      auto evt = decode(body_parts);
       return std::make_tuple(std::move(identity), std::move(evt));
     };
 
@@ -32,7 +48,7 @@ public:
                           const typename event_type::recv_type &evt) {
       send_more(broker, identity);
       send_more(broker, "");
-      send_one(broker, event_type::encode(evt));
+      send_one(broker, encode(evt));
     };
 
     /***************************************************************************
