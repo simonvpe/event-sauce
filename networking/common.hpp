@@ -1,5 +1,10 @@
 #pragma once
 #include "../vendor/serialize_std_variant.hpp"
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <iostream>
+#include <optional>
+#include <sstream>
 #include <zmq.hpp>
 
 static constexpr auto max_identity_size = 10;
@@ -22,4 +27,46 @@ auto recv_one(zmq::socket_t &broker, std::size_t max_msg_size) -> std::string {
   broker.recv(&msg);
   const auto *buffer = static_cast<const char *>(msg.data());
   return {buffer, buffer + msg.size()};
+};
+
+auto recv_one_noblock(zmq::socket_t &broker, std::size_t max_msg_size)
+    -> std::optional<std::string> {
+  zmq::message_t msg{max_msg_size};
+  if (broker.recv(&msg, ZMQ_NOBLOCK)) {
+    const auto *buffer = static_cast<const char *>(msg.data());
+    return {{buffer, buffer + msg.size()}};
+  }
+  return {};
+}
+
+template <typename Message> struct event {
+  using identity_type = std::string;
+  using message_type = Message;
+  using broadcast_type = message_type;
+  struct targetted_type {
+    identity_type other;
+    message_type message;
+
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+      ar & this->other;
+      ar & this->message;
+    }
+  };
+  using type = std::variant<broadcast_type, targetted_type>;
+
+  static std::string encode(const event::type &evt) {
+    std::ostringstream ss;
+    boost::archive::binary_oarchive oa{ss};
+    oa << evt;
+    return ss.str();
+  }
+
+  static type decode(const std::string &str) {
+    event::type evt;
+    std::istringstream ss{str};
+    boost::archive::binary_iarchive ia{ss};
+    ia >> evt;
+    return std::move(evt);
+  }
 };
