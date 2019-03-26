@@ -53,17 +53,35 @@ template <typename Message> struct event {
       ar & this->message;
     }
   };
-  using type = std::variant<broadcast_type, targetted_type>;
+  using send_type = std::variant<broadcast_type, targetted_type>;
 
-  static std::string encode(const event::type &evt) {
+  struct recv_type {
+    identity_type from;
+    message_type message;
+
+    template<typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+      ar & this->from;
+      ar & this->message;
+    }
+  };
+
+  static std::string encode(const event::send_type &evt) {
     std::ostringstream ss;
     boost::archive::binary_oarchive oa{ss};
     oa << evt;
     return ss.str();
   }
 
-  static type decode(const std::string &str) {
-    event::type evt;
+  static std::string encode(const event::recv_type &evt) {
+    std::ostringstream ss;
+    boost::archive::binary_oarchive oa{ss};
+    oa << evt;
+    return ss.str();
+  }
+
+  static send_type decode(const std::string &str) {
+    event::send_type evt;
     std::istringstream ss{str};
     boost::archive::binary_iarchive ia{ss};
     ia >> evt;

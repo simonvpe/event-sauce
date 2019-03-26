@@ -57,25 +57,10 @@ int main() {
       Client<std::string>::start(endpoint("localhost"), client_callback);
 
   while (true) {
+    std::this_thread::sleep_for(std::chrono::seconds{1});
     client1->publish("Hello");
     client2->publish("World");
   }
 
-  /*
-  auto client = [](const std::string &name) {
-    zmq::context_t zmq{1};
-    zmq::socket_t broker{zmq, ZMQ_DEALER};
-    broker.connect(endpoint("localhost"));
-
-    while (true) {
-      Router<std::string>::publish(broker, "Hello from " + name);
-      const auto evt = Router<std::string>::receive(broker);
-      std::cout << name << " received " << evt << std::endl;
-    }
-  };
-
-  auto c1 = std::async(std::launch::async, client, "A");
-  auto c2 = std::async(std::launch::async, client, "B");
-  */
   return 0;
 }

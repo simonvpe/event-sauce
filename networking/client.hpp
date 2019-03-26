@@ -19,13 +19,16 @@ public:
     std::mutex key;
 
     static void dispatch(callback_type &cb,
-                         const typename event_type::targetted_type &msg) {
-      cb("UNKNOWN", msg.message);
+                         const typename event_type::recv_type &msg) {
+      cb(msg.from, msg.message);
     }
 
-    static void dispatch(callback_type &cb,
-                         const typename event_type::broadcast_type &msg) {
-      cb("UNKNOWN", msg);
+    static typename event_type::recv_type decode(const std::string &str) {
+      typename event_type::recv_type evt;
+      std::istringstream ss{str};
+      boost::archive::binary_iarchive ia{ss};
+      ia >> evt;
+      return std::move(evt);
     }
 
     void event_loop(callback_type cb) {
@@ -33,9 +36,8 @@ public:
         // Recv
         while (const auto msg = recv_one_noblock(broker, max_body_parts_size)) {
           if (msg->size() > 0) {
-            std::visit(
-                [&cb](const auto &msg) { context_type::dispatch(cb, msg); },
-                event_type::decode(*msg));
+            auto m = context_type::decode(*msg);
+            cb(m.from, m.message);
           }
         }
 

@@ -29,7 +29,7 @@ public:
      ** send
      ***************************************************************************/
     auto send = [&broker](const std::string &identity,
-                          const typename event_type::type &evt) {
+                          const typename event_type::recv_type &evt) {
       send_more(broker, identity);
       send_more(broker, "");
       send_one(broker, event_type::encode(evt));
@@ -41,21 +41,29 @@ public:
     immer::set<std::string> clients;
 
     while (true) {
-      auto [identity, evt] = recv();
+      auto [source, evt] = recv();
 
-      clients = clients.insert(identity);
+      clients = clients.insert(source);
 
-      const auto others = clients.erase(identity);
+      const auto others = clients.erase(source);
 
       if (std::holds_alternative<typename event_type::targetted_type>(evt)) {
         auto targetted_event =
             std::get<typename event_type::targetted_type>(evt);
         const auto destination = targetted_event.other;
-        send(destination, targetted_event.message);
-      } else {
+        const auto msg =
+            typename event_type::recv_type{source, targetted_event.message};
+        send(destination, msg);
+      } else if (std::holds_alternative<typename event_type::broadcast_type>(
+                     evt)) {
+        auto broadcast_event =
+            std::get<typename event_type::broadcast_type>(evt);
         std::for_each(
-            others.begin(), others.end(),
-            [&send, &evt](const auto &identity) { send(identity, evt); });
+            others.begin(), others.end(), [&](const auto &destination) {
+              const auto msg =
+                  typename event_type::recv_type{source, broadcast_event};
+              send(destination, msg);
+            });
       }
     }
   }
