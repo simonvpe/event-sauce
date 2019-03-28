@@ -17,15 +17,6 @@ template <typename... Ts> struct RouterImpl {
 private:
   std::tuple<Ts...> subscribers;
 
-  struct Visitor {
-    Visitor(RouterImpl &router) : router{router} {}
-    RouterImpl &router;
-
-    template <typename T> void operator()(const T &value) {
-      router.publish(value);
-    }
-  };
-
 public:
   RouterImpl(Ts &&... ts) : subscribers{std::move(ts)...} {}
 
@@ -38,7 +29,7 @@ public:
   }
 
   template <typename... Us> void publish(std::variant<Us...> &&events) {
-    std::visit(Visitor(*this), events);
+    std::visit([this](const auto &evt) { publish(evt); }, events);
   }
 
   template <typename... Us> void publish(std::tuple<Us...> &&events) {
@@ -202,37 +193,25 @@ template <typename ReadModel, typename... Aggregates> struct Context {
   }
 
   template <typename Command> void dispatch(const Command &cmd) {
-    auto events = std::make_tuple(AggregateExecute<Aggregates>{
-        std::get<typename Aggregates::state_type>(state)}(cmd)...);
+    auto executors = std::make_tuple(AggregateExecute<Aggregates>{
+        std::get<typename Aggregates::state_type>(state)}...);
 
-    // Publish events
-    auto publish = [this](auto &&evt) {
-      this->router.publish(std::move(evt));
-      return 0;
-    };
+    auto processors = std::make_tuple(AggregateProcess<Aggregates>{
+        std::get<typename Aggregates::state_type>(state)}...);
 
-    std::apply(
-        [&publish](auto &&... xs) {
-          return std::make_tuple(publish(std::move(xs))...);
-        },
-        events);
+    auto execute_cmd = [&cmd](auto &fn) { return fn(cmd); };
+    auto events = tuple_map(executors, execute_cmd);
+
+    auto publish = [this](auto &&evt) { router.publish(std::move(evt)); };
+    tuple_execute(events, publish);
 
     // Process manager dispatch
-    auto do_dispatch = [this](const auto &evt) {
-      auto callback = [this](const auto &cmd) {
-        this->dispatch(cmd);
-        return 0;
-      };
-      std::make_tuple(AggregateProcess<Aggregates>{
-          std::get<typename Aggregates::state_type>(state)}(evt, callback)...);
-      return 0;
+    auto do_dispatch = [this, &processors](const auto &evt) {
+      tuple_execute(processors, [this, &evt](auto &process) {
+        process(evt, [this](const auto &cmd) { dispatch(cmd); });
+      });
     };
-
-    std::apply(
-        [&do_dispatch](auto &&... xs) {
-          return std::make_tuple(do_dispatch(std::move(xs))...);
-        },
-        events);
+    tuple_execute(events, do_dispatch);
   }
 
   template <typename Command>
