@@ -2,6 +2,7 @@
 
 #include <tuple>
 #include <variant>
+#include "fx/tuple-foldl.hpp"
 
 namespace event_sauce {
 /*******************************************************************************
@@ -155,18 +156,6 @@ template <typename Aggregate> struct AggregateProcess {
   }
 };
 
-// utility function to accumulate over a tuple
-template <typename Op, typename Val, typename T, typename... Ts>
-inline auto tuple_accumulate(Op op, Val val, std::tuple<T, Ts...> &&tuple) {
-  const auto next_val = op(val, std::move(std::get<0>(tuple)));
-  if constexpr (sizeof...(Ts) == 0) {
-    return next_val;
-  } else {
-    auto tail = std::make_tuple(std::get<Ts>(tuple)...);
-    return tuple_accumulate(op, next_val, std::move(tail));
-  }
-}
-
 // binds aggregates and their states and recursively creates a router
 template <typename State, typename ReadModel, typename Aggregate,
           typename... Aggregates>
@@ -186,7 +175,7 @@ inline auto bind(State &state, ReadModel &read_model, Aggregate &&agg,
   if constexpr (sizeof...(Aggregates) > 0) {
     auto binders = std::make_tuple(bind_aggregate(std::move(aggs))...);
     auto op = [](auto acc, auto binder) { return binder(acc); };
-    return tuple_accumulate(op, initial, std::move(binders));
+    return tuple_foldl(op, initial, std::move(binders));
   } else {
     return initial;
   }
