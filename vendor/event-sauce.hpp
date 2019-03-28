@@ -1,8 +1,9 @@
 #pragma once
 
+#include "fx/tuple-execute.hpp"
+#include "fx/tuple-foldl.hpp"
 #include <tuple>
 #include <variant>
-#include "fx/tuple-foldl.hpp"
 
 namespace event_sauce {
 /*******************************************************************************
@@ -33,26 +34,15 @@ public:
   }
 
   template <typename T> void publish(const T &evt) {
-    auto wrap = [&evt](auto &sub) {
-      sub(evt);
-      return 0;
-    };
-
-    std::apply([&wrap](auto &&... xs) { return std::make_tuple(wrap(xs)...); },
-               subscribers);
+    tuple_execute(subscribers, [&evt](auto &sub) { sub(evt); });
   }
 
-  template <typename... Us> void publish(std::variant<Us...> &&v) {
-    std::visit(Visitor(*this), v);
+  template <typename... Us> void publish(std::variant<Us...> &&events) {
+    std::visit(Visitor(*this), events);
   }
 
-  template <typename... Us> void publish(std::tuple<Us...> &&v) {
-    auto wrap = [this](auto &&evt) {
-      this->publish(evt);
-      return 0;
-    };
-    std::apply([&wrap](auto &&... xs) { return std::make_tuple(wrap(xs)...); },
-               v);
+  template <typename... Us> void publish(std::tuple<Us...> &&events) {
+    tuple_execute(events, [this](auto &&evt) { this->publish(evt); });
   }
 };
 } // namespace router_detail

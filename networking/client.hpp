@@ -81,7 +81,7 @@ public:
       std::lock_guard<std::mutex> guard{key};
       event_queue.push_back([msg = std::move(msg), this] {
         send_more(this->broker, "");
-        send_one(broker, std::move(msg));
+        send_one(this->broker, std::move(msg));
       });
     }
   };
