@@ -1,7 +1,7 @@
 #pragma once
 
-#include "fx/tuple-execute.hpp"
-#include "fx/tuple-foldl.hpp"
+#include <tuple-execute.hpp>
+#include <tuple-foldl.hpp>
 #include <tuple>
 #include <variant>
 
