@@ -2,7 +2,7 @@
 #include "aggregates/time.hpp"
 #include "networking/client.hpp"
 #include "networking/router.hpp"
-#include "vendor/event-sauce.hpp"
+#include <event-sauce/event-sauce.hpp>
 #include <future>
 #include <immer/map.hpp>
 #include <iostream>

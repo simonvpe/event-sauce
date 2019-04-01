@@ -3,8 +3,8 @@
 #include "aggregates/player.hpp"
 #include "aggregates/rigid_body.hpp"
 #include "aggregates/time.hpp"
-#include "vendor/event-sauce.hpp"
 #include <chrono>
+#include <event-sauce/event-sauce.hpp>
 #include <imgui-SFML.h>
 #include <imgui.h>
 #include <iostream>

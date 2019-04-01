@@ -1,9 +1,9 @@
 #pragma once
 
-#include "tuple-invoke.hpp"
-#include "type_traits.hpp"
-#include <tuple-execute.hpp>
-#include <tuple-foldl.hpp>
+#include <event-sauce/fx/tuple-execute.hpp>
+#include <event-sauce/fx/tuple-foldl.hpp>
+#include <event-sauce/fx/tuple-invoke.hpp>
+#include <event-sauce/misc/type_traits.hpp>
 #include <tuple>
 #include <variant>
 

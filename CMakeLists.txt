@@ -43,9 +43,9 @@ target_link_libraries(imgui-sfml
 add_subdirectory(vendor)
 
 add_executable(SFMLTest main.cpp)
-target_link_libraries(SFMLTest immer fx imgui-sfml)
+target_link_libraries(SFMLTest immer event-sauce imgui-sfml)
 set_target_properties(SFMLTest PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
 
 add_executable(server server.cpp)
-target_link_libraries(server immer fx ${ZeroMQ_LIBRARY} Threads::Threads boost_serialization)
+target_link_libraries(server immer event-sauce ${ZeroMQ_LIBRARY} Threads::Threads boost_serialization)
 set_target_properties(server PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
