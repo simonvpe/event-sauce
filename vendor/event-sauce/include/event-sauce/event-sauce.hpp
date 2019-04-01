@@ -250,5 +250,16 @@ public:
     const auto commands = process(state, evt);
     dispatch(commands);
   }
+
+//////////////////////////////////////////////////////////////////////////////
+// DEBUGGING
+//////////////////////////////////////////////////////////////////////////////
+#ifndef NDEBUG
+  template<typename Aggregate>
+  typename Aggregate::state_type inspect() const
+  {
+    return std::get<typename Aggregate::state_type>(state);
+  }
+#endif
 };
 } // namespace event_sauce
