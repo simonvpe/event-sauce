@@ -42,6 +42,13 @@ execute()
   };
 }
 
+template<typename... Ts>
+constexpr auto
+event_count(const std::tuple<Ts...>& events)
+{
+  return (0 + ... + (std::is_same_v<Ts, std::monostate> ? 0 : 1));
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // APPLY
 //////////////////////////////////////////////////////////////////////////////
@@ -197,6 +204,7 @@ public:
   void dispatch(const Command& cmd)
   {
     const auto events = execute(state, cmd);
+    static_assert(detail::event_count(events) > 0, "Unhandled command");
     publish(events);
   }
 
