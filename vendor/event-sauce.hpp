@@ -141,17 +141,17 @@ project()
 template<typename ReadModel, typename... Aggregates>
 class context
 {
+  static constexpr auto execute = ::event_sauce::detail::execute<Aggregates...>();
+  static constexpr auto apply = ::event_sauce::detail::apply<Aggregates...>();
+  static constexpr auto process = ::event_sauce::detail::process<Aggregates...>();
+  static constexpr auto project = ::event_sauce::detail::project<Aggregates...>();
+
 public:
   //////////////////////////////////////////////////////////////////////////////
   // DEFINITIONS
   //////////////////////////////////////////////////////////////////////////////
   using read_model_type = ReadModel;
   using state_type = ::event_sauce::detail::state_type<Aggregates...>;
-
-  static constexpr auto execute = ::event_sauce::detail::execute<Aggregates...>();
-  static constexpr auto apply = ::event_sauce::detail::apply<Aggregates...>();
-  static constexpr auto process = ::event_sauce::detail::process<Aggregates...>();
-  static constexpr auto project = ::event_sauce::detail::project<Aggregates...>();
 
   //////////////////////////////////////////////////////////////////////////////
   // STATE
