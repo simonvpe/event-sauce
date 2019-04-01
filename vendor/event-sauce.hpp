@@ -204,7 +204,9 @@ public:
   void dispatch(const Command& cmd)
   {
     const auto events = execute(state, cmd);
-    static_assert(detail::event_count(events) > 0, "Unhandled command");
+    constexpr auto nof_events = detail::event_count(events);
+    static_assert(nof_events > 0, "Unhandled command");
+    static_assert(nof_events < 2, "Command handled more than once");
     publish(events);
   }
 
