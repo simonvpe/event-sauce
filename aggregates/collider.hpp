@@ -8,15 +8,14 @@
 #include <immer/map.hpp>
 #include <immer/vector.hpp>
 
-struct Collider {
-  static constexpr auto project = [] {};
-  static constexpr auto process = [] {};
-
+struct Collider
+{
   //////////////////////////////////////////////////////////////////////////////
   // Commands
   //////////////////////////////////////////////////////////////////////////////
 
-  struct Create {
+  struct Create
+  {
     CorrelationId correlation_id;
     EntityId entity_id;
     rectangle<meter_t> bounding_box;
@@ -26,7 +25,8 @@ struct Collider {
   // Events
   //////////////////////////////////////////////////////////////////////////////
 
-  struct Created {
+  struct Created
+  {
     CorrelationId correlation_id;
     EntityId entity_id;
     rectangle<meter_t> bounding_box;
@@ -36,7 +36,8 @@ struct Collider {
   // State
   //////////////////////////////////////////////////////////////////////////////
 
-  struct collider_t {
+  struct collider_t
+  {
     EntityId entity_id;
     rectangle<meter_t> bounding_box;
     tensor<meter_t> position;
@@ -50,31 +51,31 @@ struct Collider {
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute Create -> Created
-  static Created execute(const state_type &state, const Create &command) {
-    return {command.correlation_id, command.entity_id, command.bounding_box};
+  static Created execute(const state_type& state, const Create& command)
+  {
+    return { command.correlation_id, command.entity_id, command.bounding_box };
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Created
-  static state_type apply(const state_type &state, const Created &event) {
-    auto collider =
-        collider_t{event.entity_id, event.bounding_box, {0_m, 0_m}, 0_rad};
-    return insert(state, std::move(collider), {0_m, 0_m});
+  static state_type apply(const state_type& state, const Created& event)
+  {
+    auto collider = collider_t{ event.entity_id, event.bounding_box, { 0_m, 0_m }, 0_rad };
+    return insert(state, std::move(collider), { 0_m, 0_m });
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Entity::PositionChanged
-  static state_type apply(const state_type &state,
-                          const Entity::PositionChanged &evt) {
-    return move(state, evt.position, 10_m, [&evt](const auto &collider) {
-      return evt.entity_id == collider.entity_id;
-    });
+  static state_type apply(const state_type& state, const Entity::PositionChanged& evt)
+  {
+    return move(
+      state, evt.position, 10_m, [&evt](const auto& collider) { return evt.entity_id == collider.entity_id; });
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Entity::RotationChanged
-  static state_type apply(const state_type &state,
-                          const Entity::RotationChanged &evt) {
+  static state_type apply(const state_type& state, const Entity::RotationChanged& evt)
+  {
     /*
     if (const auto *c = state.find(evt.entity_id)) {
       auto collider = *c;
@@ -87,7 +88,5 @@ struct Collider {
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply TimeAdvanced
-  static state_type apply(const state_type &state, const TimeAdvanced &event) {
-    return state;
-  }
+  static state_type apply(const state_type& state, const TimeAdvanced& event) { return state; }
 };

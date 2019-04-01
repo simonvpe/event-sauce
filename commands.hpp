@@ -5,11 +5,14 @@
 using EntityId = int;
 using CorrelationId = int;
 
-class PlayerId {
+class PlayerId
+{
 public:
-  constexpr PlayerId(int value) : value{value} {
+  constexpr PlayerId(int value)
+      : value{ value }
+  {
     if (value != 0) {
-      throw std::runtime_error{"Invalid player id" + std::to_string(value)};
+      throw std::runtime_error{ "Invalid player id" + std::to_string(value) };
     }
   }
 
@@ -19,19 +22,21 @@ private:
   int value;
 };
 
-struct CreateMap {
+struct CreateMap
+{
   using Grid = std::array<std::array<bool, 100>, 100>;
   static constexpr meter_t cell_width = 1_m;
   Grid grid;
 };
 
-struct Tick {
+struct Tick
+{
   CorrelationId correlation_id;
   second_t dt;
 };
 
-struct SetShipRotation {
+struct SetShipRotation
+{
   PlayerId player;
   radian_t angle;
 };
-

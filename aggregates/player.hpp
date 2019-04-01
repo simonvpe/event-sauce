@@ -11,23 +11,25 @@
 /*******************************************************************************
  ** Player
  *******************************************************************************/
-struct Player {
+struct Player
+{
 public:
-  static constexpr auto project = [] {}; // Disabled
-
   //////////////////////////////////////////////////////////////////////////////
   // Commands
   //////////////////////////////////////////////////////////////////////////////
 
-  struct Create {
+  struct Create
+  {
     CorrelationId player_id;
   };
 
-  struct ActivateThruster {
+  struct ActivateThruster
+  {
     CorrelationId player_id;
   };
 
-  struct SetRotation {
+  struct SetRotation
+  {
     CorrelationId player_id;
     radian_t rotation;
   };
@@ -36,11 +38,13 @@ public:
   // Events
   //////////////////////////////////////////////////////////////////////////////
 
-  struct Created {
+  struct Created
+  {
     CorrelationId player_id;
   };
 
-  struct ThrusterActivated {
+  struct ThrusterActivated
+  {
     CorrelationId player_id;
   };
 
@@ -48,13 +52,15 @@ public:
   // State
   //////////////////////////////////////////////////////////////////////////////
 
-  struct player_t {
+  struct player_t
+  {
     newton_t thrust;
     EntityId root_entity_id;
     radian_t rotation;
   };
 
-  struct state_type {
+  struct state_type
+  {
     immer::map<CorrelationId, player_t> players;
   };
 
@@ -64,13 +70,12 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute Create -> Created
-  static Created execute(const state_type &state, const Create &cmd) {
-    return Created{cmd.player_id};
-  }
+  static Created execute(const state_type& state, const Create& cmd) { return Created{ cmd.player_id }; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Created
-  static state_type apply(const state_type &state, const Created &evt) {
+  static state_type apply(const state_type& state, const Created& evt)
+  {
     state_type next = state;
     next.players = next.players.set(evt.player_id, {});
     return next;
@@ -78,15 +83,14 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Process Created -> Entity::Create
-  static Entity::Create process(const state_type &state, const Created &evt) {
-    return {evt.player_id};
-  }
+  static Entity::Create process(const state_type& state, const Created& evt) { return { evt.player_id }; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Entity::Created
-  static state_type apply(const state_type &state, const Entity::Created &evt) {
+  static state_type apply(const state_type& state, const Entity::Created& evt)
+  {
     if (state.players.find(evt.correlation_id)) {
-      auto player = player_t{10_N, evt.entity_id, 0_rad};
+      auto player = player_t{ 10_N, evt.entity_id, 0_rad };
       state_type next = state;
       next.players = next.players.set(evt.correlation_id, player);
       return next;
@@ -96,23 +100,24 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Process Entity::Created -> [RigidBody::Create | Collider::Create]
-  static std::vector<std::variant<RigidBody::Create, Collider::Create>>
-  process(const state_type &state, const Entity::Created &evt) {
+  static std::vector<std::variant<RigidBody::Create, Collider::Create>> process(const state_type& state,
+                                                                                const Entity::Created& evt)
+  {
     const auto player_id = evt.correlation_id;
     if (state.players.find(player_id)) {
       const auto entity_id = state.players[player_id].root_entity_id;
       auto mass = 1_kg;
-      auto box = rectangle<meter_t>{{0_m, 0_m}, {1_m, 1_m}};
-      return {RigidBody::Create{evt.correlation_id, entity_id, std::move(mass)},
-              Collider::Create{evt.correlation_id, entity_id, std::move(box)}};
+      auto box = rectangle<meter_t>{ { 0_m, 0_m }, { 1_m, 1_m } };
+      return { RigidBody::Create{ evt.correlation_id, entity_id, std::move(mass) },
+               Collider::Create{ evt.correlation_id, entity_id, std::move(box) } };
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply RigidBodyCreated
-  static state_type apply(const state_type &state,
-                          const RigidBody::Created &evt) {
+  static state_type apply(const state_type& state, const RigidBody::Created& evt)
+  {
     std::cout << "Player " << evt.correlation_id << " created!" << std::endl;
     return state;
   }
@@ -123,41 +128,38 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute ActivateThruster -> ThrusterActivated
-  static ThrusterActivated execute(const state_type &state,
-                                   const ActivateThruster &evt) {
-    return {evt.player_id};
-  }
+  static ThrusterActivated execute(const state_type& state, const ActivateThruster& evt) { return { evt.player_id }; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Execute ChangeRotation -> Entity::RotationChanged
-  static std::variant<std::monostate, Entity::RotationChanged>
-  execute(const state_type &state, const SetRotation &evt) {
+  static std::variant<std::monostate, Entity::RotationChanged> execute(const state_type& state, const SetRotation& evt)
+  {
     const auto player_id = evt.player_id;
     if (state.players.find(player_id)) {
       const auto entity_id = state.players[player_id].root_entity_id;
-      return Entity::RotationChanged{player_id, entity_id, evt.rotation};
+      return Entity::RotationChanged{ player_id, entity_id, evt.rotation };
     }
     return {};
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Process ThrusterActivated -> RigidBody::ApplyForce
-  static RigidBody::ApplyForce process(const state_type &state,
-                                       const ThrusterActivated &evt) {
+  static RigidBody::ApplyForce process(const state_type& state, const ThrusterActivated& evt)
+  {
     using namespace units::math;
-    const auto &player = state.players[evt.player_id];
+    const auto& player = state.players[evt.player_id];
     const auto rotation = player.rotation;
-    const auto direction = tensor<float>{cos(rotation), sin(rotation)};
+    const auto direction = tensor<float>{ cos(rotation), sin(rotation) };
     const auto thrust = direction * player.thrust;
-    return {evt.player_id, player.root_entity_id, thrust};
+    return { evt.player_id, player.root_entity_id, thrust };
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply Entity::RotationChanged
-  static state_type apply(const state_type &state,
-                          const Entity::RotationChanged &evt) {
+  static state_type apply(const state_type& state, const Entity::RotationChanged& evt)
+  {
 
-    if (const auto *p = state.players.find(evt.correlation_id)) {
+    if (const auto* p = state.players.find(evt.correlation_id)) {
       player_t player = *p;
       player.rotation = evt.rotation;
       state_type next = state;

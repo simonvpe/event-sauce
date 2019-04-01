@@ -5,35 +5,39 @@
 #include <immer/vector.hpp>
 #include <optional>
 
-template <typename T> struct QuadTreeImpl;
-template <typename T> using quad_tree = immer::box<QuadTreeImpl<T>>;
+template<typename T>
+struct QuadTreeImpl;
+template<typename T>
+using quad_tree = immer::box<QuadTreeImpl<T>>;
 
-template <typename T> struct QuadTreeImpl {
+template<typename T>
+struct QuadTreeImpl
+{
 
-  struct Entity {
+  struct Entity
+  {
     tensor<meter_t> position;
     T payload;
   };
 
-  struct BoundingBox {
+  struct BoundingBox
+  {
     tensor<meter_t> center;
     meter_t half_dimension;
 
-    bool contains(tensor<meter_t> position) const {
-      return (position.x >= center.x - half_dimension &&
-              position.x <= center.x + half_dimension &&
-              position.y >= center.y - half_dimension &&
-              position.y <= center.y + half_dimension);
+    bool contains(tensor<meter_t> position) const
+    {
+      return (position.x >= center.x - half_dimension && position.x <= center.x + half_dimension &&
+              position.y >= center.y - half_dimension && position.y <= center.y + half_dimension);
     }
 
-    bool intersects(const BoundingBox &other) const {
+    bool intersects(const BoundingBox& other) const
+    {
       const auto x = center.x;
       const auto y = center.y;
       const auto w = half_dimension;
-      return !(other.center.x - other.half_dimension > x + w ||
-               other.center.x + other.half_dimension < x - w ||
-               other.center.y - other.half_dimension > y + w ||
-               other.center.y + other.half_dimension < y - w);
+      return !(other.center.x - other.half_dimension > x + w || other.center.x + other.half_dimension < x - w ||
+               other.center.y - other.half_dimension > y + w || other.center.y + other.half_dimension < y - w);
     }
   };
 
@@ -46,12 +50,16 @@ template <typename T> struct QuadTreeImpl {
   std::optional<immer::box<QuadTreeImpl>> southwest;
   std::optional<immer::box<QuadTreeImpl>> southeast;
 
-  QuadTreeImpl(meter_t x = 0_m, meter_t y = 0_m,
-               meter_t half_dimension = 1000_m, int capacity = 4)
-      : boundary{x, y, half_dimension}, capacity{capacity} {}
+  QuadTreeImpl(meter_t x = 0_m, meter_t y = 0_m, meter_t half_dimension = 1000_m, int capacity = 4)
+      : boundary{ x, y, half_dimension }
+      , capacity{ capacity }
+  {}
 };
 
-template <typename T> quad_tree<T> subdivide(quad_tree<T> qtree) {
+template<typename T>
+quad_tree<T>
+subdivide(quad_tree<T> qtree)
+{
   return qtree.update([](auto qtree) {
     const auto x = qtree.boundary.center.x;
     const auto y = qtree.boundary.center.y;
@@ -67,11 +75,12 @@ template <typename T> quad_tree<T> subdivide(quad_tree<T> qtree) {
 }
 
 // Insert an entity into the qtree
-template <typename T>
-quad_tree<T> insert(quad_tree<T> qtree, T payload, tensor<meter_t> position);
+template<typename T>
+quad_tree<T>
+insert(quad_tree<T> qtree, T payload, tensor<meter_t> position);
 
 // Query the qtree
-template <typename T>
+template<typename T>
 immer::vector<typename quad_tree<T>::Entity>
 query(quad_tree<T> qtree, typename quad_tree<T>::BoundingBox range);
 
@@ -80,9 +89,10 @@ query(quad_tree<T> qtree, typename quad_tree<T>::BoundingBox range);
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace detail {
-template <typename T>
-std::optional<quad_tree<T>> insert_impl(quad_tree<T> qtree, T payload,
-                                        tensor<meter_t> position) {
+template<typename T>
+std::optional<quad_tree<T>>
+insert_impl(quad_tree<T> qtree, T payload, tensor<meter_t> position)
+{
   // Ignore objects that do not belong to this quad tree
   if (!qtree->boundary.contains(position)) {
     return {};
@@ -92,7 +102,7 @@ std::optional<quad_tree<T>> insert_impl(quad_tree<T> qtree, T payload,
   // add the object here
   if (qtree->entities.size() < qtree->capacity) {
     return qtree.update([payload, position](auto qtree) {
-      qtree.entities = qtree.entities.push_back({position, payload});
+      qtree.entities = qtree.entities.push_back({ position, payload });
       return qtree;
     });
   }
@@ -144,21 +154,21 @@ std::optional<quad_tree<T>> insert_impl(quad_tree<T> qtree, T payload,
     return qtree;
   });
   if (!done) {
-    throw std::runtime_error{"Failed to insert into qtree"};
+    throw std::runtime_error{ "Failed to insert into qtree" };
   }
 
   return qtree;
 }
 
-template <typename T, typename F>
+template<typename T, typename F>
 std::optional<quad_tree<T>>
-remove_impl(quad_tree<T> qtree, typename QuadTreeImpl<T>::BoundingBox range,
-            F &&predicate) {
+remove_impl(quad_tree<T> qtree, typename QuadTreeImpl<T>::BoundingBox range, F&& predicate)
+{
   if (!qtree->boundary.intersects(range)) {
     return {};
   }
   auto i = 0;
-  for (const auto &entity : qtree->entities) {
+  for (const auto& entity : qtree->entities) {
     if (predicate(entity.payload)) {
       return qtree.update([&i](auto qtree) {
         qtree.entities = qtree.entities.erase(i);
@@ -203,62 +213,65 @@ remove_impl(quad_tree<T> qtree, typename QuadTreeImpl<T>::BoundingBox range,
 }
 } // namespace detail
 
-template <typename T>
-quad_tree<T> insert(quad_tree<T> qtree, T payload, tensor<meter_t> position) {
+template<typename T>
+quad_tree<T>
+insert(quad_tree<T> qtree, T payload, tensor<meter_t> position)
+{
   return *detail::insert_impl(qtree, payload, position);
 }
 
-template <typename T>
+template<typename T>
 immer::vector<typename QuadTreeImpl<T>::Entity>
-query(quad_tree<T> qtree, typename QuadTreeImpl<T>::BoundingBox range) {
+query(quad_tree<T> qtree, typename QuadTreeImpl<T>::BoundingBox range)
+{
   immer::vector<typename QuadTreeImpl<T>::Entity> entities;
   if (!qtree->boundary.intersects(range)) {
     return entities;
   }
-  for (const auto &entity : qtree->entities) {
+  for (const auto& entity : qtree->entities) {
     if (range.contains(entity.position)) {
       entities = entities.push_back(entity);
     }
   }
   if (qtree->northwest) {
-    for (const auto &entity : query(*qtree->northwest, range)) {
+    for (const auto& entity : query(*qtree->northwest, range)) {
       entities = entities.push_back(entity);
     }
   }
   if (qtree->northeast) {
-    for (const auto &entity : query(*qtree->northeast, range)) {
+    for (const auto& entity : query(*qtree->northeast, range)) {
       entities = entities.push_back(entity);
     }
   }
   if (qtree->southwest) {
-    for (const auto &entity : query(*qtree->southwest, range)) {
+    for (const auto& entity : query(*qtree->southwest, range)) {
       entities = entities.push_back(entity);
     }
   }
   if (qtree->southeast) {
-    for (const auto &entity : query(*qtree->southeast, range)) {
+    for (const auto& entity : query(*qtree->southeast, range)) {
       entities = entities.push_back(entity);
     }
   }
   return entities;
 }
 
-template <typename T, typename F>
-quad_tree<T> remove(quad_tree<T> qtree,
-                    typename QuadTreeImpl<T>::BoundingBox range,
-                    F &&predicate) {
-  if (auto result =
-          detail::remove_impl(qtree, std::move(range), std::move(predicate))) {
+template<typename T, typename F>
+quad_tree<T>
+remove(quad_tree<T> qtree, typename QuadTreeImpl<T>::BoundingBox range, F&& predicate)
+{
+  if (auto result = detail::remove_impl(qtree, std::move(range), std::move(predicate))) {
     return *result;
   }
   return std::move(qtree);
 }
 
-template <typename T, typename F>
-quad_tree<T> move(quad_tree<T> qtree, tensor<meter_t> destination,
-                  meter_t search_width, F &&predicate) {
+template<typename T, typename F>
+quad_tree<T>
+move(quad_tree<T> qtree, tensor<meter_t> destination, meter_t search_width, F&& predicate)
+{
   T pl;
-  auto pred = [&pl, &predicate](const auto &payload) mutable {
+  auto pred = [&pl, &predicate](const auto& payload) mutable {
     // store payload for later use
     if (predicate(payload)) {
       pl = payload;
@@ -266,7 +279,7 @@ quad_tree<T> move(quad_tree<T> qtree, tensor<meter_t> destination,
     }
     return false;
   };
-  auto range = typename QuadTreeImpl<T>::BoundingBox{destination, search_width};
+  auto range = typename QuadTreeImpl<T>::BoundingBox{ destination, search_width };
   if (auto removed = detail::remove_impl(qtree, range, std::move(pred))) {
     std::cout << "Move " << destination << std::endl;
     return insert(*removed, std::move(pl), destination);
