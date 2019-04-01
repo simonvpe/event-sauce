@@ -50,8 +50,11 @@ template<typename Message>
 struct event
 {
   using identity_type = std::string;
+
   using message_type = Message;
+
   using broadcast_type = message_type;
+
   struct targetted_type
   {
     identity_type other;
@@ -64,7 +67,15 @@ struct event
       ar & this->message;
     }
   };
-  using send_type = std::variant<broadcast_type, targetted_type>;
+
+  struct notify_presence
+  {
+    template<typename Archive>
+    void serialize(Archive& ar, const unsigned int version)
+    {}
+  };
+
+  using send_type = std::variant<broadcast_type, targetted_type, notify_presence>;
 
   struct recv_type
   {

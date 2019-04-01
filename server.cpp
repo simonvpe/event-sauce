@@ -7,60 +7,141 @@
 #include <immer/map.hpp>
 #include <iostream>
 
-struct ReadModel
-{};
-
-struct ConnectionPool
+struct ServerAggregate
 {
-public:
-  static constexpr auto project = [] {}; // Disabled
-  static constexpr auto process = [] {}; // Disabled
-  static constexpr auto apply = [] {};
-  static constexpr auto execute = [] {};
-
-  using ClientIdentity = std::string;
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Commands
-  //////////////////////////////////////////////////////////////////////////////
-  struct StartListening
+  struct Speak
   {
-    CorrelationId correlation_id;
+    std::string sentence;
   };
 
-  struct connection_t
+  struct Spoke
   {
-    CorrelationId correlation_id;
+    std::string sentence;
   };
 
   struct state_type
-  {
-    immer::map<ClientIdentity, connection_t> clients;
-  };
+  {};
+
+  static Spoke execute(const state_type& state, const Speak& cmd) { return { cmd.sentence }; }
+
+  template<typename Event>
+  static auto project(const Event& evt);
 };
+
+struct ClientAggregate
+{
+  struct Speak
+  {
+    std::string sentence;
+  };
+
+  struct Spoke
+  {
+    std::string sentence;
+  };
+
+  struct state_type
+  {};
+
+  static Spoke execute(const state_type& state, const Speak& cmd) { return { cmd.sentence }; }
+
+  template<typename Event>
+  static auto project(const Event& evt);
+};
+
+struct ServerNetworkRouter
+{
+  struct state_type
+  {};
+
+  static auto project(const ServerAggregate::Spoke& evt)
+  {
+    return [evt](auto& network_client) {
+      network_client.publish(evt);
+      return 0;
+    };
+  }
+};
+
+struct ClientNetworkRouter
+{
+  struct state_type
+  {};
+
+  static auto project(const ClientAggregate::Spoke& evt)
+  {
+    return [evt](auto& network_client) {
+      network_client.publish(evt);
+      return 0;
+    };
+  }
+};
+
+template<>
+auto
+ServerAggregate::project(const ClientAggregate::Spoke& evt)
+{
+  return [evt](auto&) {
+    std::cout << "Server: client said " << evt.sentence << std::endl;
+    return 0;
+  };
+}
+
+template<>
+auto
+ClientAggregate::project(const ServerAggregate::Spoke& evt)
+{
+  return [evt](auto&) {
+    std::cout << "Client: server said " << evt.sentence << std::endl;
+    return 0;
+  };
+}
+
+namespace boost {
+namespace serialization {
+
+template<class Archive>
+void
+serialize(Archive& ar, ServerAggregate::Spoke& evt, const unsigned int version)
+{
+  ar& evt.sentence;
+}
+
+template<class Archive>
+void
+serialize(Archive& ar, ClientAggregate::Spoke& evt, const unsigned int version)
+{
+  ar& evt.sentence;
+}
+
+} // namespace serialization
+} // namespace boost
 
 int
 main()
 {
   static constexpr auto endpoint = [](const std::string& ip) { return "tcp://" + ip + ":5555"; };
+  using event_type = std::variant<ServerAggregate::Spoke, ClientAggregate::Spoke>;
 
-  auto read_model = ReadModel{};
-  auto ctx = event_sauce::context<ReadModel, Player, Entity, Time, RigidBody, ConnectionPool>(read_model);
+  using router_type = Router<event_type>;
+  auto router = std::async(std::launch::async, router_type::event_loop, endpoint("*"));
 
-  auto router = std::async(std::launch::async, Router<std::string>::event_loop, endpoint("*"));
+  auto server_network = Client<event_type>{ endpoint("localhost") };
+  auto server_ctx =
+    event_sauce::context<decltype(server_network), ServerNetworkRouter, ServerAggregate>(server_network);
+  server_network.start([&server_ctx](std::string from, const event_type& msg) { server_ctx.publish(msg); });
 
-  auto client_callback = [](std::string from, const auto& message) {
-    std::cout << "Client received " << message << " from " << from << std::endl;
-  };
+  auto client_network = Client<event_type>{ endpoint("localhost") };
+  auto client_ctx =
+    event_sauce::context<decltype(client_network), ClientNetworkRouter, ClientAggregate>(client_network);
+  client_network.start([&client_ctx](std::string from, const event_type& msg) { client_ctx.publish(msg); });
 
-  auto client1 = Client<std::string>::start(endpoint("localhost"), client_callback);
-
-  auto client2 = Client<std::string>::start(endpoint("localhost"), client_callback);
-
+  auto counter = 0;
   while (true) {
-    std::this_thread::sleep_for(std::chrono::seconds{ 1 });
-    client1->publish("Hello");
-    client2->publish("World");
+    std::this_thread::sleep_for(std::chrono::milliseconds{ 500 });
+    server_ctx.dispatch(ServerAggregate::Speak{ "Hello " + std::to_string(counter) });
+    client_ctx.dispatch(ClientAggregate::Speak{ "World " + std::to_string(counter) });
+    ++counter;
   }
 
   return 0;

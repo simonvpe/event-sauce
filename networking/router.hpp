@@ -62,7 +62,6 @@ public:
 
     while (true) {
       auto [source, evt] = recv();
-
       clients = clients.insert(source);
 
       const auto others = clients.erase(source);
@@ -78,6 +77,8 @@ public:
           const auto msg = typename event_type::recv_type{ source, broadcast_event };
           send(destination, msg);
         });
+      } else if (std::holds_alternative<typename event_type::notify_presence>(evt)) {
+        std::cerr << "Client " << source << " connected" << std::endl;
       }
     }
   }
