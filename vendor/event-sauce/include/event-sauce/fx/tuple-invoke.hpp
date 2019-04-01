@@ -1,5 +1,6 @@
 #pragma once
-#include "tuple-map.hpp"
+#include <event-sauce/fx/tuple-map.hpp>
+#include <functional>
 
 template<typename T, typename... Args>
 auto

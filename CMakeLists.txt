@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 project(SFMLTest)
+enable_testing()
 
 ## If you want to link SFML statically
 # set(SFML_STATIC_LIBRARIES TRUE)
