@@ -12,6 +12,9 @@ find_package(PkgConfig REQUIRED)
 find_package(SFML 2.5 COMPONENTS graphics audio REQUIRED)
 find_package(Threads REQUIRED)
 
+add_subdirectory(vendor)
+add_subdirectory(gfx)
+
 find_path(ZeroMQ_INCLUDE_DIR
         NAMES zmq.hpp
         PATHS ${PC_ZeroMQ_INCLUDE_DIRS}
@@ -40,8 +43,6 @@ target_link_libraries(imgui-sfml
   sfml-graphics
   boost_serialization)
 
-add_subdirectory(vendor)
-
 add_executable(SFMLTest main.cpp)
 target_link_libraries(SFMLTest immer fx imgui-sfml)
 set_target_properties(SFMLTest PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
@@ -49,3 +50,7 @@ set_target_properties(SFMLTest PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
 add_executable(server server.cpp)
 target_link_libraries(server immer fx ${ZeroMQ_LIBRARY} Threads::Threads boost_serialization)
 set_target_properties(server PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
+
+add_executable(vulkano-test vulkano.cpp)
+target_link_libraries(vulkano-test vulkano immer fx Threads::Threads)
+set_target_properties(vulkano-test PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
