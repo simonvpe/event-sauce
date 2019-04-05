@@ -1,5 +1,7 @@
 #pragma once
 
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/io_context_strand.hpp>
 #include <event-sauce/fx/tuple-execute.hpp>
 #include <event-sauce/fx/tuple-foldl.hpp>
 #include <event-sauce/fx/tuple-invoke.hpp>
@@ -152,6 +154,8 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   using read_model_type = ReadModel;
   using state_type = ::event_sauce::detail::state_type<Aggregates...>;
+  static constexpr auto default_dispatcher = [](auto&& fn) { fn(); };
+  using default_dispatcher_type = decltype(default_dispatcher);
 
   //////////////////////////////////////////////////////////////////////////////
   // STATE
@@ -172,83 +176,89 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // DISPATCH
   //////////////////////////////////////////////////////////////////////////////
-  void dispatch(const std::monostate&) {}
+  template<typename Dispatcher = default_dispatcher_type>
+  void dispatch(const std::monostate&, Dispatcher = default_dispatcher)
+  {}
 
-  template<typename... Ts>
-  void dispatch(const std::variant<Ts...>& cmd)
+  template<typename... Ts, typename Dispatcher = default_dispatcher_type>
+  void dispatch(const std::variant<Ts...>& cmd, Dispatcher dispatcher = default_dispatcher)
   {
-    std::visit([this](const auto& cmd) { this->dispatch(cmd); }, cmd);
+    std::visit([this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); }, cmd);
   }
 
-  template<typename... Ts>
-  void dispatch(const std::tuple<Ts...>& cmds)
+  template<typename... Ts, typename Dispatcher = default_dispatcher_type>
+  void dispatch(const std::tuple<Ts...>& cmds, Dispatcher dispatcher = default_dispatcher)
   {
-    tuple_execute(cmds, [this](const auto& cmd) { this->dispatch(cmd); });
+    tuple_execute(cmds, [this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
   }
 
-  template<typename T>
-  void dispatch(const std::vector<T>& cmds)
+  template<typename T, typename Dispatcher = default_dispatcher_type>
+  void dispatch(const std::vector<T>& cmds, Dispatcher dispatcher = default_dispatcher)
   {
-    std::for_each(cbegin(cmds), cend(cmds), [this](const auto& cmd) { this->dispatch(cmd); });
+    std::for_each(cbegin(cmds), cend(cmds), [this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
   }
 
-  template<typename T>
-  void dispatch(const std::optional<T>& cmd)
+  template<typename T, typename Dispatcher = default_dispatcher_type>
+  void dispatch(const std::optional<T>& cmd, Dispatcher dispatcher = default_dispatcher)
   {
     if (cmd) {
-      publish(*cmd);
+      dispatch(*cmd, dispatcher);
     }
   }
 
-  template<typename Command>
-  void dispatch(const Command& cmd)
+  template<typename Command, typename Dispatcher = default_dispatcher_type>
+  void dispatch(const Command& cmd, Dispatcher dispatcher = default_dispatcher)
   {
-    const auto events = execute(state, cmd);
-    constexpr auto nof_events = detail::event_count(events);
-    static_assert(nof_events > 0, "Unhandled command");
-    static_assert(nof_events < 2, "Command handled more than once");
-    publish(events);
+    dispatcher([this, cmd, dispatcher = std::forward<decltype(dispatcher)>(dispatcher)] {
+      const auto events = execute(state, cmd);
+      constexpr auto nof_events = detail::event_count(events);
+      static_assert(nof_events > 0, "Unhandled command");
+      static_assert(nof_events < 2, "Command handled more than once");
+      publish(events, dispatcher);
+    });
   }
 
   //////////////////////////////////////////////////////////////////////////////
   // PUBLISH
   //////////////////////////////////////////////////////////////////////////////
-  void publish(const std::monostate&) {}
+  template<typename Dispatcher>
+  void publish(const std::monostate&, Dispatcher = default_dispatcher)
+  {}
 
-  template<typename... Ts>
-  void publish(const std::variant<Ts...>& evt)
+  template<typename... Ts, typename Dispatcher>
+  void publish(const std::variant<Ts...>& evt, Dispatcher dispatcher = default_dispatcher)
   {
-    std::visit([this](const auto& evt) { this->publish(evt); }, evt);
+    std::visit([this, dispatcher](const auto& evt) { this->publish(evt, dispatcher); }, evt);
   }
 
-  template<typename... Ts>
-  void publish(const std::tuple<Ts...>& evts)
+  template<typename... Ts, typename Dispatcher>
+  void publish(const std::tuple<Ts...>& evts, Dispatcher dispatcher = default_dispatcher)
   {
-    tuple_execute(evts, [this](const auto& evt) { this->publish(evt); });
+    tuple_execute(evts, [this, dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
   }
 
-  template<typename T>
-  void publish(const std::vector<T>& evts)
+  template<typename T, typename Dispatcher>
+  void publish(const std::vector<T>& evts, Dispatcher dispatcher = default_dispatcher)
   {
-    std::for_each(cbegin(evts), cend(evts), [this](const auto& evt) { this->publish(evt); });
+    std::for_each(cbegin(evts), cend(evts), [this, dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
   }
 
-  template<typename T>
-  void publish(const std::optional<T>& evt)
+  template<typename T, typename Dispatcher>
+  void publish(const std::optional<T>& evt, Dispatcher dispatcher = default_dispatcher)
   {
     if (evt) {
-      publish(*evt);
+      publish(*evt, dispatcher);
     }
   }
 
-  template<typename Event>
-  void publish(const Event& evt)
+  template<typename Event, typename Dispatcher>
+  void publish(const Event& evt, Dispatcher dispatcher = default_dispatcher)
   {
     state = apply(state, evt);
     ++last_event_id;
     project(read_model, evt);
     const auto commands = process(state, evt);
-    dispatch(commands);
+    dispatch(commands, dispatcher);
   }
 
 //////////////////////////////////////////////////////////////////////////////

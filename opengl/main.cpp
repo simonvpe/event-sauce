@@ -1,74 +1,268 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <boost/asio/post.hpp>
+#include <event-sauce/event-sauce.hpp>
 #include <glm/glm.hpp>
 #include <iostream>
 
-using namespace glm;
+namespace opengl {
+////////////////////////////////////////////////////////////////////////////////
+// Common events
+////////////////////////////////////////////////////////////////////////////////
 
-GLFWwindow* window;
-
-class WindowContext
+struct Error
 {
-  GLFWwindow* window;
-  std::string window_name;
-
-public:
-  WindowContext(int width, int height, const std::string& name)
-  {
-    { // GLFW
-      const auto err = glfwInit();
-      if (err != GLFW_TRUE) {
-        throw std::runtime_error{ "Failed to initialize glfw" };
-      }
-
-      glfwWindowHint(GLFW_SAMPLES, 4);
-      glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-      glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-      glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-      glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-      window = glfwCreateWindow(width, height, name.c_str(), nullptr, nullptr);
-      if (window == nullptr) {
-        glfwTerminate();
-        throw std::runtime_error{ "Failed to create window" };
-      }
-      glfwMakeContextCurrent(window);
-    }
-    {
-      const auto err = glewInit();
-      if (err != GLEW_OK) {
-        glfwTerminate();
-        auto error_string = std::string(reinterpret_cast<const char*>(glewGetErrorString(err)));
-        throw std::runtime_error{ "Failed to initialize glew " + error_string };
-      }
-    }
-  }
-
-  ~WindowContext() { glfwTerminate(); }
-
-  template<typename F>
-  void run_event_loop(F&& callback)
-  {
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-    do {
-      glClear(GL_COLOR_BUFFER_BIT);
-      callback();
-      glfwSwapBuffers(window);
-      glfwPollEvents();
-    } while (glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS && glfwWindowShouldClose(window) == 0);
-  }
-
-private:
+  std::string description;
 };
 
+namespace aggregate {
+////////////////////////////////////////////////////////////////////////////////
+// opengl::aggregate::Window
+////////////////////////////////////////////////////////////////////////////////
+struct window
+{
+  //////////////////////////////////////////////////////////////////////////////
+  // Commands
+  //////////////////////////////////////////////////////////////////////////////
+  struct Create
+  {
+    int width;
+    int height;
+    std::string name;
+  };
+
+  struct Terminate
+  {};
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Events
+  //////////////////////////////////////////////////////////////////////////////
+  struct Created
+  {
+    GLFWwindow* window;
+  };
+
+  struct Terminated
+  {};
+
+  //////////////////////////////////////////////////////////////////////////////
+  // State
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct state_type
+  {
+    GLFWwindow* window;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute
+  //////////////////////////////////////////////////////////////////////////////
+
+  static std::variant<Error, Created> execute(const state_type& state, const Create& cmd)
+  {
+    std::cout << "Creating window" << std::endl;
+    if (state.window) {
+      return Error{ "Window already created" };
+    }
+
+    if (glfwInit() != GLFW_TRUE) {
+      return Error{ "Failed to initialize glfw" };
+    }
+
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    auto* window = glfwCreateWindow(cmd.width, cmd.height, cmd.name.c_str(), nullptr, nullptr);
+    if (window == nullptr) {
+      return Error{ "Failed to create window" };
+    }
+    glfwMakeContextCurrent(window);
+
+    if (glewInit() != GLEW_OK) {
+      return Error{ "Failed to initialize glew" };
+    }
+
+    return Created{ window };
+  }
+
+  static Terminated execute(const state_type& state, const Terminate& cmd)
+  {
+    return {};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply
+  //////////////////////////////////////////////////////////////////////////////
+
+  static state_type apply(const state_type& state, const Created& evt)
+  {
+    return { evt.window };
+  }
+
+  static state_type apply(const state_type& state, const Terminated&)
+  {
+    glfwTerminate();
+    return { nullptr };
+  }
+
+  static state_type apply(const state_type& state, const Error& evt)
+  {
+    std::cerr << "Error: " << evt.description << std::endl;
+    glfwTerminate();
+    return state;
+  }
+};
+}
+
+namespace process {
+////////////////////////////////////////////////////////////////////////////////
+// opengl::process::Render
+////////////////////////////////////////////////////////////////////////////////
+struct render
+{
+  //////////////////////////////////////////////////////////////////////////////
+  // Commands
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct Start
+  {};
+
+  struct Finish
+  {};
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Events
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct Started
+  {};
+
+  struct Finished
+  {};
+
+  //////////////////////////////////////////////////////////////////////////////
+  // State
+  //////////////////////////////////////////////////////////////////////////////
+
+  struct state_type
+  {
+    GLFWwindow* window = nullptr;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Execute
+  //////////////////////////////////////////////////////////////////////////////
+
+  static std::variant<Error, Started> execute(const state_type& state, const Start& cmd)
+  {
+    if (state.window) {
+      return Started{};
+    }
+    return Error{ "No window" };
+  }
+
+  static Finished execute(const state_type& state, const Finish& cmd)
+  {
+    return {};
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Apply
+  //////////////////////////////////////////////////////////////////////////////
+
+  static state_type apply(const state_type& state, const aggregate::window::Created& evt)
+  {
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    return { evt.window };
+  }
+
+  static state_type apply(const state_type& state, const aggregate::window::Terminated& evt)
+  {
+    return { nullptr };
+  }
+
+  static state_type apply(const state_type& state, const Started& evt)
+  {
+    glClear(GL_COLOR_BUFFER_BIT);
+    return state;
+  }
+
+  static state_type apply(const state_type& state, const Finished& evt)
+  {
+    if (state.window) {
+      glfwSwapBuffers(state.window);
+    }
+    return state;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Process
+  //////////////////////////////////////////////////////////////////////////////
+
+  static Start process(const state_type& state, const aggregate::window::Created& evt)
+  {
+    return {};
+  }
+
+  static Finish process(const state_type& state, const Started& evt)
+  {
+    std::cout << "Rendering finished" << std::endl;
+    return {};
+  }
+
+  static std::optional<Start> process(const state_type& state, const Finished& evt)
+  {
+    if (!state.window) {
+      std::cout << "Rendering aborted because there is no window to render to" << std::endl;
+      return {};
+    }
+    std::cout << "Rendering completed" << std::endl;
+    return { Start{} };
+  }
+};
+}
+namespace aggregate {
+////////////////////////////////////////////////////////////////////////////////
+// opengl::aggregate::io
+////////////////////////////////////////////////////////////////////////////////
+struct io
+{
+  struct state_type
+  {};
+
+  static state_type apply(const state_type& state, const window::Created& evt)
+  {
+    glfwSetInputMode(evt.window, GLFW_STICKY_KEYS, GL_TRUE);
+    return {};
+  }
+
+  static state_type apply(const state_type& state, const process::render::Finished& evt)
+  {
+    glfwPollEvents();
+    return {};
+  }
+};
+}
+}
+#include <thread>
 int
 main()
 {
-  WindowContext window(1024, 768, "My Window");
+  boost::asio::io_context io_context;
+  boost::asio::io_context::strand strand{ io_context };
+  auto dispatcher = [&strand](auto&& fn) { boost::asio::post(strand, std::forward<decltype(fn)>(fn)); };
 
-  window.run_event_loop([] { std::cout << "Event loop" << std::endl; });
+  int model;
+  auto ctx =
+    event_sauce::context<int, opengl::aggregate::window, opengl::aggregate::io, opengl::process::render>(model);
+  ctx.dispatch(opengl::aggregate::window::Create{ 1024, 768, "My Window" }, dispatcher);
+
+  std::thread t{ [&] { io_context.run(); } };
+  std::this_thread::sleep_for(std::chrono::seconds{ 2 });
+  ctx.dispatch(opengl::aggregate::window::Terminate{}, dispatcher);
+  t.join();
   return 0;
 }
