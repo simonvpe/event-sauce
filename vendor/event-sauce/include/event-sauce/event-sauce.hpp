@@ -37,11 +37,11 @@ template<typename Aggregate, typename Command>
 constexpr auto can_execute = is_detected<execute_result_type, Aggregate, Command>::value;
 
 // execute :: () -> state -> command -> [event | monostate]
-template<typename... Aggregates>
+template<typename Dispatcher, typename... Aggregates>
 constexpr auto
-execute()
+execute(Dispatcher&& dispatcher)
 {
-  return [](const state_type<Aggregates...>& state, const auto& cmd) {
+  return [&dispatcher](const state_type<Aggregates...>& state, const auto& cmd) {
     // functions :: [state -> cmd -> event | monostate]
     auto functions = std::make_tuple([agg = Aggregates{}](const state_type<Aggregates...>& state, const auto& cmd) {
       if constexpr (can_execute<decltype(agg), decltype(cmd)>) {
@@ -72,9 +72,9 @@ template<typename Aggregate, typename Event, typename State = typename Aggregate
 constexpr auto can_apply = is_detected_convertible<State, apply_result_type, Aggregate, Event>::value;
 
 // apply :: () -> state -> event -> state
-template<typename... Aggregates>
+template<typename Dispatcher, typename... Aggregates>
 constexpr auto
-apply()
+apply(Dispatcher&& dispatcher)
 {
   return [](const state_type<Aggregates...>& state, const auto& evt) {
     // functions :: [state -> evt -> substate]
@@ -100,9 +100,9 @@ template<typename Aggregate, typename Event>
 constexpr auto can_process = is_detected<process_result_type, Aggregate, Event>::value;
 
 // process :: () -> state -> event -> [command | monostate]
-template<typename... Aggregates>
+template<typename Dispatcher, typename... Aggregates>
 constexpr auto
-process()
+process(Dispatcher&& dispatcher)
 {
   return [](state_type<Aggregates...>& state, const auto& evt) {
     // functions :: [state -> evt -> command | monostate]
@@ -128,9 +128,9 @@ template<typename Aggregate, typename Event>
 constexpr auto can_project = is_detected<project_result_type, Aggregate, Event>::value;
 
 // project :: () -> read_model -> event -> IO(read_model)
-template<typename... Aggregates>
+template<typename Dispatcher, typename... Aggregates>
 constexpr auto
-project()
+project(Dispatcher&& dispatcher)
 {
   return [=](auto& read_model, auto& evt) {
     // projectors :: evt -> [read_model -> IO(read_model)]
@@ -154,11 +154,6 @@ project()
 template<typename ReadModel, typename... Aggregates>
 class context
 {
-  static constexpr auto execute = ::event_sauce::detail::execute<Aggregates...>();
-  static constexpr auto apply = ::event_sauce::detail::apply<Aggregates...>();
-  static constexpr auto process = ::event_sauce::detail::process<Aggregates...>();
-  static constexpr auto project = ::event_sauce::detail::project<Aggregates...>();
-
 public:
   //////////////////////////////////////////////////////////////////////////////
   // DEFINITIONS
@@ -192,38 +187,42 @@ public:
   template<typename... Ts, typename Dispatcher = detail::default_dispatcher_type>
   void dispatch(const std::variant<Ts...>& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::visit([this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); }, cmd);
+    auto fn = [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, std::forward<Dispatcher>(dispatcher)); };
+    std::visit(std::move(fn), cmd);
   }
 
   template<typename... Ts, typename Dispatcher = detail::default_dispatcher_type>
   void dispatch(const std::tuple<Ts...>& cmds, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    tuple_execute(cmds, [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
+    auto fn = [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, std::forward<Dispatcher>(dispatcher)); };
+    tuple_execute(cmds, std::move(fn));
   }
 
   template<typename T, typename Dispatcher = detail::default_dispatcher_type>
   void dispatch(const std::vector<T>& cmds, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::for_each(cbegin(cmds), cend(cmds), [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
+    auto fn = [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, std::forward<Dispatcher>(dispatcher)); };
+    std::for_each(cbegin(cmds), cend(cmds), std::move(fn));
   }
 
   template<typename T, typename Dispatcher = detail::default_dispatcher_type>
   void dispatch(const std::optional<T>& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
     if (cmd) {
-      dispatch(*cmd, dispatcher);
+      dispatch(*cmd, std::forward<Dispatcher>(dispatcher));
     }
   }
 
   template<typename Command, typename Dispatcher = detail::default_dispatcher_type>
   void dispatch(const Command& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    dispatcher.serial()([this, cmd, &dispatcher] {
+    dispatcher.serial()([this, cmd, &dispatcher]() mutable {
+      const auto execute = detail::execute<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
       const auto events = execute(state, cmd);
       constexpr auto nof_events = detail::event_count(events);
       static_assert(nof_events > 0, "Unhandled command");
       static_assert(nof_events < 2, "Command handled more than once");
-      publish(events, dispatcher);
+      publish(events, std::forward<Dispatcher>(dispatcher));
     });
   }
 
@@ -237,37 +236,44 @@ public:
   template<typename... Ts, typename Dispatcher>
   void publish(const std::variant<Ts...>& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::visit([this, &dispatcher](const auto& evt) { this->publish(evt, dispatcher); }, evt);
+    auto fn = [this, &dispatcher](const auto& evt) { this->publish(evt, std::forward<Dispatcher>(dispatcher)); };
+    std::visit(std::move(fn), evt);
   }
 
   template<typename... Ts, typename Dispatcher>
   void publish(const std::tuple<Ts...>& evts, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    tuple_execute(evts, [this, &dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
+    auto fn = [this, &dispatcher](const auto& evt) { this->publish(evt, std::forward<Dispatcher>(dispatcher)); };
+    tuple_execute(evts, std::move(fn));
   }
 
   template<typename T, typename Dispatcher>
   void publish(const std::vector<T>& evts, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::for_each(cbegin(evts), cend(evts), [this, &dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
+    auto fn = [this, &dispatcher](const auto& evt) { this->publish(evt, std::forward<Dispatcher>(dispatcher)); };
+    std::for_each(cbegin(evts), cend(evts), std::move(fn));
   }
 
   template<typename T, typename Dispatcher>
   void publish(const std::optional<T>& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
     if (evt) {
-      publish(*evt, dispatcher);
+      publish(*evt, std::forward<Dispatcher>(dispatcher));
     }
   }
 
   template<typename Event, typename Dispatcher>
   void publish(const Event& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
+    const auto apply = detail::apply<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
+    const auto project = detail::project<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
+    const auto process = detail::process<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
+
     state = apply(state, evt);
     ++last_event_id;
     project(read_model, evt);
     const auto commands = process(state, evt);
-    dispatch(commands, dispatcher);
+    dispatch(commands, std::forward<Dispatcher>(dispatcher));
   }
 
 //////////////////////////////////////////////////////////////////////////////
