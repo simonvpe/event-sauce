@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/io_context_strand.hpp>
 #include <event-sauce/fx/tuple-execute.hpp>
 #include <event-sauce/fx/tuple-foldl.hpp>
 #include <event-sauce/fx/tuple-invoke.hpp>
@@ -12,6 +10,19 @@
 namespace event_sauce {
 
 namespace detail {
+
+struct default_dispatcher_type
+{
+  auto serial()
+  {
+    return [](auto&& fn) { fn(); };
+  }
+
+  auto concurrent()
+  {
+    // ?????????????????????????????????
+  }
+};
 
 template<typename... Aggregates>
 using state_type = std::tuple<typename Aggregates::state_type...>;
@@ -154,8 +165,6 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   using read_model_type = ReadModel;
   using state_type = ::event_sauce::detail::state_type<Aggregates...>;
-  static constexpr auto default_dispatcher = [](auto&& fn) { fn(); };
-  using default_dispatcher_type = decltype(default_dispatcher);
 
   //////////////////////////////////////////////////////////////////////////////
   // STATE
@@ -176,40 +185,40 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // DISPATCH
   //////////////////////////////////////////////////////////////////////////////
-  template<typename Dispatcher = default_dispatcher_type>
-  void dispatch(const std::monostate&, Dispatcher = default_dispatcher)
+  template<typename Dispatcher = detail::default_dispatcher_type>
+  void dispatch(const std::monostate&, Dispatcher&& = detail::default_dispatcher_type{})
   {}
 
-  template<typename... Ts, typename Dispatcher = default_dispatcher_type>
-  void dispatch(const std::variant<Ts...>& cmd, Dispatcher dispatcher = default_dispatcher)
+  template<typename... Ts, typename Dispatcher = detail::default_dispatcher_type>
+  void dispatch(const std::variant<Ts...>& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
     std::visit([this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); }, cmd);
   }
 
-  template<typename... Ts, typename Dispatcher = default_dispatcher_type>
-  void dispatch(const std::tuple<Ts...>& cmds, Dispatcher dispatcher = default_dispatcher)
+  template<typename... Ts, typename Dispatcher = detail::default_dispatcher_type>
+  void dispatch(const std::tuple<Ts...>& cmds, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    tuple_execute(cmds, [this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
+    tuple_execute(cmds, [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
   }
 
-  template<typename T, typename Dispatcher = default_dispatcher_type>
-  void dispatch(const std::vector<T>& cmds, Dispatcher dispatcher = default_dispatcher)
+  template<typename T, typename Dispatcher = detail::default_dispatcher_type>
+  void dispatch(const std::vector<T>& cmds, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::for_each(cbegin(cmds), cend(cmds), [this, dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
+    std::for_each(cbegin(cmds), cend(cmds), [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, dispatcher); });
   }
 
-  template<typename T, typename Dispatcher = default_dispatcher_type>
-  void dispatch(const std::optional<T>& cmd, Dispatcher dispatcher = default_dispatcher)
+  template<typename T, typename Dispatcher = detail::default_dispatcher_type>
+  void dispatch(const std::optional<T>& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
     if (cmd) {
       dispatch(*cmd, dispatcher);
     }
   }
 
-  template<typename Command, typename Dispatcher = default_dispatcher_type>
-  void dispatch(const Command& cmd, Dispatcher dispatcher = default_dispatcher)
+  template<typename Command, typename Dispatcher = detail::default_dispatcher_type>
+  void dispatch(const Command& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    dispatcher([this, cmd, dispatcher = std::forward<decltype(dispatcher)>(dispatcher)] {
+    dispatcher.serial()([this, cmd, &dispatcher] {
       const auto events = execute(state, cmd);
       constexpr auto nof_events = detail::event_count(events);
       static_assert(nof_events > 0, "Unhandled command");
@@ -222,29 +231,29 @@ public:
   // PUBLISH
   //////////////////////////////////////////////////////////////////////////////
   template<typename Dispatcher>
-  void publish(const std::monostate&, Dispatcher = default_dispatcher)
+  void publish(const std::monostate&, Dispatcher&& = detail::default_dispatcher_type{})
   {}
 
   template<typename... Ts, typename Dispatcher>
-  void publish(const std::variant<Ts...>& evt, Dispatcher dispatcher = default_dispatcher)
+  void publish(const std::variant<Ts...>& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::visit([this, dispatcher](const auto& evt) { this->publish(evt, dispatcher); }, evt);
+    std::visit([this, &dispatcher](const auto& evt) { this->publish(evt, dispatcher); }, evt);
   }
 
   template<typename... Ts, typename Dispatcher>
-  void publish(const std::tuple<Ts...>& evts, Dispatcher dispatcher = default_dispatcher)
+  void publish(const std::tuple<Ts...>& evts, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    tuple_execute(evts, [this, dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
+    tuple_execute(evts, [this, &dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
   }
 
   template<typename T, typename Dispatcher>
-  void publish(const std::vector<T>& evts, Dispatcher dispatcher = default_dispatcher)
+  void publish(const std::vector<T>& evts, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
-    std::for_each(cbegin(evts), cend(evts), [this, dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
+    std::for_each(cbegin(evts), cend(evts), [this, &dispatcher](const auto& evt) { this->publish(evt, dispatcher); });
   }
 
   template<typename T, typename Dispatcher>
-  void publish(const std::optional<T>& evt, Dispatcher dispatcher = default_dispatcher)
+  void publish(const std::optional<T>& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
     if (evt) {
       publish(*evt, dispatcher);
@@ -252,7 +261,7 @@ public:
   }
 
   template<typename Event, typename Dispatcher>
-  void publish(const Event& evt, Dispatcher dispatcher = default_dispatcher)
+  void publish(const Event& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
   {
     state = apply(state, evt);
     ++last_event_id;

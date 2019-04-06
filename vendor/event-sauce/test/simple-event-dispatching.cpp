@@ -52,3 +52,4 @@ TEST_SUITE("simple event dispatching")
     }
   }
 }
+

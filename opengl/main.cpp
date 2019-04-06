@@ -1,9 +1,13 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/io_context_strand.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/thread/thread.hpp>
 #include <event-sauce/event-sauce.hpp>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <thread>
 
 namespace opengl {
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,22 +251,55 @@ struct io
 };
 }
 }
-#include <thread>
+
+class pool_dispatcher
+{
+  boost::asio::io_context io_context;
+  std::unique_ptr<boost::asio::io_context::work> work;
+  boost::thread_group pool;
+  boost::asio::io_context::strand serializer;
+
+public:
+  pool_dispatcher(int nthreads = std::thread::hardware_concurrency())
+      : io_context{}
+      , work{ std::make_unique<boost::asio::io_context::work>(io_context) }
+      , pool{}
+      , serializer{ io_context }
+  {
+    for (auto i = 0; i < nthreads; ++i) {
+      pool.create_thread([this] { io_context.run(); });
+    }
+  }
+
+  ~pool_dispatcher()
+  {
+    work.reset();
+    pool.join_all();
+  }
+
+  auto serial()
+  {
+    return [this](auto&& fn) { boost::asio::post(serializer, std::forward<decltype(fn)>(fn)); };
+  }
+
+  auto concurrent()
+  {
+    return [this](auto&& fn) { boost::asio::post(io_context, std::forward<decltype(fn)>(fn)); };
+  }
+};
+
 int
 main()
 {
-  boost::asio::io_context io_context;
-  boost::asio::io_context::strand strand{ io_context };
-  auto dispatcher = [&strand](auto&& fn) { boost::asio::post(strand, std::forward<decltype(fn)>(fn)); };
+  pool_dispatcher dispatcher{};
 
   int model;
   auto ctx =
     event_sauce::context<int, opengl::aggregate::window, opengl::aggregate::io, opengl::process::render>(model);
   ctx.dispatch(opengl::aggregate::window::Create{ 1024, 768, "My Window" }, dispatcher);
 
-  std::thread t{ [&] { io_context.run(); } };
   std::this_thread::sleep_for(std::chrono::seconds{ 2 });
   ctx.dispatch(opengl::aggregate::window::Terminate{}, dispatcher);
-  t.join();
+
   return 0;
 }
