@@ -24,13 +24,35 @@ struct default_dispatcher_type
   }
 };
 
-template<typename... Aggregates>
-using state_type = std::tuple<typename Aggregates::state_type...>;
+template<typename Aggregate>
+using substate_type = typename Aggregate::state_type;
 
+template<typename Aggregate>
+using substate_or_monostate_type = typename detected_or<std::monostate, substate_type, Aggregate>::type;
+
+template<typename Aggregate>
+static constexpr auto has_substate = is_detected<substate_type, Aggregate>::value;
+    
+template<typename... Aggregates>
+using state_type = std::tuple<substate_or_monostate_type<Aggregates>...>;
+
+template<typename Aggregate>
+constexpr void assert_has_substate(const Aggregate&) 
+{
+    static_assert(has_substate<Aggregate>, "Aggregate does not define a 'substate_type' type.");
+}
+    
 //////////////////////////////////////////////////////////////////////////////
 // EXECUTE
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Command, typename State = typename Aggregate::state_type>
+template<typename... Ts>
+constexpr auto
+event_count(const std::tuple<Ts...>& events)
+{
+  return (0 + ... + (std::is_same_v<Ts, std::monostate> ? 0 : 1));
+}
+    
+template<typename Aggregate, typename Command, typename State = substate_type<Aggregate>>
 using execute_result_type = decltype(Aggregate::execute(std::declval<State>(), std::declval<Command>()));
 
 template<typename Aggregate, typename Command>
@@ -44,31 +66,29 @@ execute(Dispatcher&& dispatcher)
   return [&dispatcher](const state_type<Aggregates...>& state, const auto& cmd) {
     // functions :: [state -> cmd -> event | monostate]
     auto functions = std::make_tuple([agg = Aggregates{}](const state_type<Aggregates...>& state, const auto& cmd) {
+      assert_has_substate(agg);
       if constexpr (can_execute<decltype(agg), decltype(cmd)>) {
-        const auto& substate = std::get<typename decltype(agg)::state_type>(state);
+        const auto& substate = std::get<substate_type<decltype(agg)>>(state);
         return decltype(agg)::execute(substate, cmd);
       } else {
         return std::monostate{};
       }
     }...);
-    return tuple_invoke(std::move(functions), state, cmd);
+    auto events =  tuple_invoke(std::move(functions), state, cmd);
+    constexpr auto nof_events = detail::event_count(events);
+    static_assert(nof_events > 0, "Unhandled command");
+    static_assert(nof_events < 2, "Command handled more than once");
+    return std::move(events);
   };
 }
-
-template<typename... Ts>
-constexpr auto
-event_count(const std::tuple<Ts...>& events)
-{
-  return (0 + ... + (std::is_same_v<Ts, std::monostate> ? 0 : 1));
-}
-
+    
 //////////////////////////////////////////////////////////////////////////////
 // APPLY
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Event, typename State = typename Aggregate::state_type>
+template<typename Aggregate, typename Event, typename State = substate_type<Aggregate>>
 using apply_result_type = decltype(Aggregate::apply(std::declval<State>(), std::declval<Event>()));
 
-template<typename Aggregate, typename Event, typename State = typename Aggregate::state_type>
+template<typename Aggregate, typename Event, typename State = substate_type<Aggregate>>
 constexpr auto can_apply = is_detected_convertible<State, apply_result_type, Aggregate, Event>::value;
 
 // apply :: () -> state -> event -> state
@@ -79,7 +99,8 @@ apply(Dispatcher&& dispatcher)
   return [](const state_type<Aggregates...>& state, const auto& evt) {
     // functions :: [state -> evt -> substate]
     auto functions = std::make_tuple([agg = Aggregates{}](const state_type<Aggregates...>& state, const auto& evt) {
-      const auto& substate = std::get<typename decltype(agg)::state_type>(state);
+      assert_has_substate(agg);
+      const auto& substate = std::get<substate_type<decltype(agg)>>(state);
       if constexpr (can_apply<decltype(agg), decltype(evt)>) {
         return decltype(agg)::apply(substate, evt);
       } else {
@@ -93,7 +114,7 @@ apply(Dispatcher&& dispatcher)
 //////////////////////////////////////////////////////////////////////////////
 // PROCESS
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Event, typename State = typename Aggregate::state_type>
+template<typename Aggregate, typename Event, typename State = substate_type<Aggregate>>
 using process_result_type = decltype(Aggregate::process(std::declval<State>(), std::declval<Event>()));
 
 template<typename Aggregate, typename Event>
@@ -107,8 +128,9 @@ process(Dispatcher&& dispatcher)
   return [](state_type<Aggregates...>& state, const auto& evt) {
     // functions :: [state -> evt -> command | monostate]
     auto functions = std::make_tuple([agg = Aggregates{}](state_type<Aggregates...>& state, const auto& evt) {
+      assert_has_substate(agg);
       if constexpr (can_process<decltype(agg), decltype(evt)>) {
-        const auto& substate = std::get<typename decltype(agg)::state_type>(state);
+        const auto& substate = std::get<substate_type<decltype(agg)>>(state);
         return decltype(agg)::process(substate, evt);
       } else {
         return std::monostate{};
@@ -132,7 +154,7 @@ template<typename Dispatcher, typename... Aggregates>
 constexpr auto
 project(Dispatcher&& dispatcher)
 {
-  return [=](auto& read_model, auto& evt) {
+  return [](auto& read_model, auto& evt) {
     // projectors :: evt -> [read_model -> IO(read_model)]
     auto projectors = [](const auto& evt) {
       // functions :: [evt -> (read_model -> IO(read_model))]
@@ -150,7 +172,9 @@ project(Dispatcher&& dispatcher)
 }
 }
 
-// the context is the api endpoint that the user of the library interacts with
+//////////////////////////////////////////////////////////////////////////////
+// CONTEXT
+//////////////////////////////////////////////////////////////////////////////    
 template<typename ReadModel, typename... Aggregates>
 class context
 {
@@ -159,7 +183,7 @@ public:
   // DEFINITIONS
   //////////////////////////////////////////////////////////////////////////////
   using read_model_type = ReadModel;
-  using state_type = ::event_sauce::detail::state_type<Aggregates...>;
+  using state_type = detail::state_type<Aggregates...>;
 
   //////////////////////////////////////////////////////////////////////////////
   // STATE
@@ -281,9 +305,9 @@ public:
 //////////////////////////////////////////////////////////////////////////////
 #ifndef NDEBUG
   template<typename Aggregate>
-  typename Aggregate::state_type inspect() const
+  detail::substate_type<Aggregate> inspect() const
   {
-    return std::get<typename Aggregate::state_type>(state);
+    return std::get<detail::substate_type<Aggregate>>(state);
   }
 #endif
 };
