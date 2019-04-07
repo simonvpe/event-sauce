@@ -119,6 +119,89 @@ struct window
     return state;
   }
 };
+
+struct shader
+{
+  enum class type_id
+  {
+    VERTEX_SHADER
+  };
+
+  struct Create
+  {
+    type_id type;
+    std::string source;
+  };
+
+  struct Created
+  {
+    GLuint shader;
+  };
+
+  struct Deferred
+  {
+    Create command;
+  };
+
+  struct Failed
+  {
+    std::string message;
+  };
+
+  struct state_type
+  {
+    bool ready = false;
+  };
+
+  static std::variant<Created, Deferred, Failed> execute(const state_type& state, const Create& evt)
+  {
+    if (!state.ready) {
+      return Deferred{ evt };
+    }
+
+    const GLuint shader = std::invoke([&evt] {
+      const auto type = evt.type == type_id::VERTEX_SHADER ? GL_VERTEX_SHADER : -1;
+      const auto handle = glCreateShader(GL_VERTEX_SHADER);
+      const auto* source = evt.source.data();
+      glShaderSource(handle, 1, &source, nullptr);
+      glCompileShader(handle);
+      return handle;
+    });
+
+    const auto compiled = std::invoke([shader] {
+      GLint status = GL_FALSE;
+      glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+      return status == GL_TRUE;
+    });
+
+    if (!compiled) {
+      auto message = std::invoke([shader] {
+        GLint len = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
+
+        if (len > 1) {
+          std::string buffer(len, '\0');
+          glGetShaderInfoLog(shader, len, nullptr, buffer.data());
+          return std::move(buffer);
+        }
+        return std::string{};
+      });
+      glDeleteShader(shader);
+      return Failed{ std::move(message) };
+    }
+    return Created{ shader };
+  }
+
+  static state_type apply(const state_type& state, const aggregate::window::Created&)
+  {
+    return { true };
+  }
+
+  static Create process(const state_type& state, const Deferred& evt)
+  {
+    return evt.command;
+  }
+};
 }
 
 namespace process {
@@ -163,6 +246,7 @@ struct render
   static std::variant<Error, Started> execute(const state_type& state, const Start& cmd)
   {
     if (state.window) {
+      glClear(GL_COLOR_BUFFER_BIT);
       return Started{};
     }
     return Error{ "No window" };
@@ -170,6 +254,9 @@ struct render
 
   static Finished execute(const state_type& state, const Finish& cmd)
   {
+    if (state.window) {
+      glfwSwapBuffers(state.window);
+    }
     return {};
   }
 
@@ -188,20 +275,6 @@ struct render
     return { nullptr };
   }
 
-  static state_type apply(const state_type& state, const Started& evt)
-  {
-    glClear(GL_COLOR_BUFFER_BIT);
-    return state;
-  }
-
-  static state_type apply(const state_type& state, const Finished& evt)
-  {
-    if (state.window) {
-      glfwSwapBuffers(state.window);
-    }
-    return state;
-  }
-
   //////////////////////////////////////////////////////////////////////////////
   // Process
   //////////////////////////////////////////////////////////////////////////////
@@ -213,18 +286,112 @@ struct render
 
   static Finish process(const state_type& state, const Started& evt)
   {
-    std::cout << "Rendering finished" << std::endl;
     return {};
   }
 
   static std::optional<Start> process(const state_type& state, const Finished& evt)
   {
-    if (!state.window) {
-      std::cout << "Rendering aborted because there is no window to render to" << std::endl;
-      return {};
+    if (state.window) {
+      return { Start{} };
     }
-    std::cout << "Rendering completed" << std::endl;
-    return { Start{} };
+    return {};
+  }
+};
+
+struct program
+{
+
+  struct InitiateCreation
+  {};
+
+  struct CompleteCreation
+  {};
+
+  struct CreationInitiated
+  {
+    GLuint program;
+  };
+
+  struct CreationCompleted
+  {
+    GLuint program;
+  };
+
+  struct CreationFailed
+  {
+    std::string message;
+  };
+
+  struct state_type
+  {
+    GLuint current_program = {};
+  };
+
+  static std::variant<CreationFailed, CreationInitiated> execute(const state_type& state, const InitiateCreation& cmd)
+  {
+    if (state.current_program != GLuint{}) {
+      return CreationFailed{ "Program creation already in progress" };
+    }
+    const auto program = glCreateProgram();
+    return CreationInitiated{ program };
+  }
+
+  static std::variant<CreationFailed, CreationCompleted> execute(const state_type& state, const CompleteCreation& cmd)
+  {
+    if (state.current_program == GLuint{}) {
+      return CreationFailed{ "Program creation not in progress" };
+    }
+    glLinkProgram(state.current_program);
+
+    const auto linked = std::invoke([program = state.current_program] {
+      GLint status = 0;
+      glGetProgramiv(program, GL_LINK_STATUS, &status);
+      return status == GL_TRUE;
+    });
+
+    if (!linked) {
+      auto message = std::invoke([program = state.current_program] {
+        GLint len = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
+
+        if (len > 1) {
+          std::string buffer(len, '\0');
+          glGetProgramInfoLog(program, len, nullptr, buffer.data());
+          return std::move(buffer);
+        }
+        return std::string{};
+      });
+
+      glDeleteProgram(state.current_program);
+      return CreationFailed{ std::move(message) };
+    }
+
+    return CreationCompleted{ state.current_program };
+  }
+
+  static state_type apply(const state_type& state, const CreationInitiated& evt)
+  {
+    return { evt.program };
+  }
+
+  static state_type apply(const state_type& state, const CreationCompleted& evt)
+  {
+    std::cout << "Created program " << evt.program << std::endl;
+    return { {} };
+  }
+
+  static state_type apply(const state_type& state, const aggregate::shader::Created& evt)
+  {
+    if (state.current_program != GLuint{}) {
+      glAttachShader(state.current_program, evt.shader);
+    }
+    return state;
+  }
+
+  static state_type apply(const state_type& state, const CreationFailed& evt)
+  {
+    std::cerr << "Program creation failed" << std::endl << evt.message << std::endl;
+    return state;
   }
 };
 }
@@ -294,12 +461,25 @@ main()
   pool_dispatcher dispatcher{};
 
   int model;
-  auto ctx =
-    event_sauce::context<int, opengl::aggregate::window, opengl::aggregate::io, opengl::process::render>(model);
+  auto ctx = event_sauce::context<int,
+                                  opengl::aggregate::window,
+                                  opengl::aggregate::io,
+                                  opengl::process::render,
+                                  opengl::aggregate::shader,
+                                  opengl::process::program>(model);
   ctx.dispatch(opengl::aggregate::window::Create{ 1024, 768, "My Window" }, dispatcher);
+
+  ctx.dispatch(opengl::process::program::InitiateCreation{}, dispatcher);
+  ctx.dispatch(opengl::aggregate::shader::Create{ opengl::aggregate::shader::type_id::VERTEX_SHADER,
+                                                  "#version 420\n"
+                                                  "in vec3 vertex_position;\n"
+                                                  "void main() {\n"
+                                                  "  gl_Position = vec4(vertex_position, 1.0);\n"
+                                                  "}\n" },
+               dispatcher);
+  ctx.dispatch(opengl::process::program::CompleteCreation{}, dispatcher);
 
   std::this_thread::sleep_for(std::chrono::seconds{ 2 });
   ctx.dispatch(opengl::aggregate::window::Terminate{}, dispatcher);
-
   return 0;
 }
