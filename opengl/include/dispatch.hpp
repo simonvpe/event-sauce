@@ -13,22 +13,9 @@ class pool_dispatcher
   boost::asio::io_context::strand serializer;
 
 public:
-  pool_dispatcher(int nthreads = std::thread::hardware_concurrency())
-      : io_context{}
-      , work{ std::make_unique<boost::asio::io_context::work>(io_context) }
-      , pool{}
-      , serializer{ io_context }
-  {
-    for (auto i = 0; i < nthreads; ++i) {
-      pool.create_thread([this] { io_context.run(); });
-    }
-  }
+  pool_dispatcher(int nthreads = std::thread::hardware_concurrency());
 
-  ~pool_dispatcher()
-  {
-    work.reset();
-    pool.join_all();
-  }
+  ~pool_dispatcher();
 
   auto serial()
   {

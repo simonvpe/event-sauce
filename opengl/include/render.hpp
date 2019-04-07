@@ -8,7 +8,7 @@
 
 namespace opengl {
 ////////////////////////////////////////////////////////////////////////////////
-// opengl::process::Render
+// opengl::render
 ////////////////////////////////////////////////////////////////////////////////
 struct render
 {
@@ -50,58 +50,26 @@ struct render
   // Execute
   //////////////////////////////////////////////////////////////////////////////
 
-  static std::variant<Error, Started> execute(const state_type& state, const Start& cmd)
-  {
-    if (state.window) {
-      glClear(GL_COLOR_BUFFER_BIT);
-      return Started{};
-    }
-    return Error{ "No window" };
-  }
+  static std::variant<Error, Started> execute(const state_type& state, const Start& cmd);
 
-  static Finished execute(const state_type& state, const Finish& cmd)
-  {
-    if (state.window) {
-      glfwSwapBuffers(state.window);
-    }
-    return {};
-  }
+  static Finished execute(const state_type& state, const Finish& cmd);
 
   //////////////////////////////////////////////////////////////////////////////
   // Apply
   //////////////////////////////////////////////////////////////////////////////
 
-  static state_type apply(const state_type& state, const window::Created& evt)
-  {
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    return { evt.window };
-  }
+  static state_type apply(const state_type& state, const window::Created& evt);
 
-  static state_type apply(const state_type& state, const window::Terminated& evt)
-  {
-    return { nullptr };
-  }
+  static state_type apply(const state_type& state, const window::Terminated& evt);
 
   //////////////////////////////////////////////////////////////////////////////
   // Process
   //////////////////////////////////////////////////////////////////////////////
 
-  static Start process(const state_type& state, const window::Created& evt)
-  {
-    return {};
-  }
+  static Start process(const state_type& state, const window::Created& evt);
 
-  static Finish process(const state_type& state, const Started& evt)
-  {
-    return {};
-  }
+  static Finish process(const state_type& state, const Started& evt);
 
-  static std::optional<Start> process(const state_type& state, const Finished& evt)
-  {
-    if (state.window) {
-      return { Start{} };
-    }
-    return {};
-  }
+  static std::optional<Start> process(const state_type& state, const Finished& evt);
 };
 }
