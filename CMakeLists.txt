@@ -7,10 +7,11 @@ enable_testing()
 
 ## In most cases better set in the CMake cache
 # set(SFML_DIR "<sfml root prefix>/lib/cmake/SFML")
-#find_package(Boost REQUIRED)
-
+find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(glfw3 REQUIRED)
+find_package(Boost REQUIRED)
 #find_package(PkgConfig REQUIRED)
-#find_package(SFML 2.5 COMPONENTS graphics audio REQUIRED)
 find_package(Threads REQUIRED)
 
 # find_path(ZeroMQ_INCLUDE_DIR
@@ -42,8 +43,11 @@ find_package(Threads REQUIRED)
 #   boost_serialization)
 
 add_subdirectory(vendor)
-add_subdirectory(opengl)
+#add_subdirectory(opengl)
 
+add_executable(engine main.cpp pool_dispatcher.cpp)
+target_link_libraries(engine immer event-sauce OpenGL::OpenGL GLEW glfw Threads::Threads boost_system boost_thread)
+set_target_properties(engine PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
 # add_executable(SFMLTest main.cpp)
 # target_link_libraries(SFMLTest immer event-sauce imgui-sfml)
 # set_target_properties(SFMLTest PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
