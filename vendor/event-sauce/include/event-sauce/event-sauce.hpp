@@ -24,13 +24,42 @@ struct default_dispatcher_type
   }
 };
 
-template<typename... Aggregates>
-using state_type = std::tuple<typename Aggregates::state_type...>;
+struct default_projector_type
+{
+    template<typename Event>
+    void operator()(const Event&) 
+    {}
+};
 
+template<typename Aggregate>
+using substate_type = typename Aggregate::state_type;
+
+template<typename Aggregate>
+using substate_or_monostate_type = typename detected_or<std::monostate, substate_type, Aggregate>::type;
+
+template<typename Aggregate>
+static constexpr auto has_substate = is_detected<substate_type, Aggregate>::value;
+    
+template<typename... Aggregates>
+using state_type = std::tuple<substate_or_monostate_type<Aggregates>...>;
+
+template<typename Aggregate>
+constexpr void assert_has_substate(const Aggregate&) 
+{
+    static_assert(has_substate<Aggregate>, "Aggregate does not define a 'substate_type' type.");
+}
+    
 //////////////////////////////////////////////////////////////////////////////
 // EXECUTE
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Command, typename State = typename Aggregate::state_type>
+template<typename... Ts>
+constexpr auto
+event_count(const std::tuple<Ts...>& events)
+{
+  return (0 + ... + (std::is_same_v<Ts, std::monostate> ? 0 : 1));
+}
+    
+template<typename Aggregate, typename Command, typename State = substate_type<Aggregate>>
 using execute_result_type = decltype(Aggregate::execute(std::declval<State>(), std::declval<Command>()));
 
 template<typename Aggregate, typename Command>
@@ -44,31 +73,29 @@ execute(Dispatcher&& dispatcher)
   return [&dispatcher](const state_type<Aggregates...>& state, const auto& cmd) {
     // functions :: [state -> cmd -> event | monostate]
     auto functions = std::make_tuple([agg = Aggregates{}](const state_type<Aggregates...>& state, const auto& cmd) {
+      assert_has_substate(agg);
       if constexpr (can_execute<decltype(agg), decltype(cmd)>) {
-        const auto& substate = std::get<typename decltype(agg)::state_type>(state);
+        const auto& substate = std::get<substate_type<decltype(agg)>>(state);
         return decltype(agg)::execute(substate, cmd);
       } else {
         return std::monostate{};
       }
     }...);
-    return tuple_invoke(std::move(functions), state, cmd);
+    auto events =  tuple_invoke(std::move(functions), state, cmd);
+    constexpr auto nof_events = detail::event_count(events);
+    static_assert(nof_events > 0, "Unhandled command");
+    static_assert(nof_events < 2, "Command handled more than once");
+    return std::move(events);
   };
 }
-
-template<typename... Ts>
-constexpr auto
-event_count(const std::tuple<Ts...>& events)
-{
-  return (0 + ... + (std::is_same_v<Ts, std::monostate> ? 0 : 1));
-}
-
+    
 //////////////////////////////////////////////////////////////////////////////
 // APPLY
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Event, typename State = typename Aggregate::state_type>
+template<typename Aggregate, typename Event, typename State = substate_type<Aggregate>>
 using apply_result_type = decltype(Aggregate::apply(std::declval<State>(), std::declval<Event>()));
 
-template<typename Aggregate, typename Event, typename State = typename Aggregate::state_type>
+template<typename Aggregate, typename Event, typename State = substate_type<Aggregate>>
 constexpr auto can_apply = is_detected_convertible<State, apply_result_type, Aggregate, Event>::value;
 
 // apply :: () -> state -> event -> state
@@ -79,7 +106,8 @@ apply(Dispatcher&& dispatcher)
   return [](const state_type<Aggregates...>& state, const auto& evt) {
     // functions :: [state -> evt -> substate]
     auto functions = std::make_tuple([agg = Aggregates{}](const state_type<Aggregates...>& state, const auto& evt) {
-      const auto& substate = std::get<typename decltype(agg)::state_type>(state);
+      assert_has_substate(agg);
+      const auto& substate = std::get<substate_type<decltype(agg)>>(state);
       if constexpr (can_apply<decltype(agg), decltype(evt)>) {
         return decltype(agg)::apply(substate, evt);
       } else {
@@ -93,7 +121,7 @@ apply(Dispatcher&& dispatcher)
 //////////////////////////////////////////////////////////////////////////////
 // PROCESS
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Event, typename State = typename Aggregate::state_type>
+template<typename Aggregate, typename Event, typename State = substate_type<Aggregate>>
 using process_result_type = decltype(Aggregate::process(std::declval<State>(), std::declval<Event>()));
 
 template<typename Aggregate, typename Event>
@@ -104,11 +132,12 @@ template<typename Dispatcher, typename... Aggregates>
 constexpr auto
 process(Dispatcher&& dispatcher)
 {
-  return [](state_type<Aggregates...>& state, const auto& evt) {
+  return [](const state_type<Aggregates...>& state, const auto& evt) {
     // functions :: [state -> evt -> command | monostate]
-    auto functions = std::make_tuple([agg = Aggregates{}](state_type<Aggregates...>& state, const auto& evt) {
+    auto functions = std::make_tuple([agg = Aggregates{}](const state_type<Aggregates...>& state, const auto& evt) {
+      assert_has_substate(agg);
       if constexpr (can_process<decltype(agg), decltype(evt)>) {
-        const auto& substate = std::get<typename decltype(agg)::state_type>(state);
+        const auto& substate = std::get<substate_type<decltype(agg)>>(state);
         return decltype(agg)::process(substate, evt);
       } else {
         return std::monostate{};
@@ -119,172 +148,104 @@ process(Dispatcher&& dispatcher)
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// PROJECT
+// UTIL
 //////////////////////////////////////////////////////////////////////////////
-template<typename Aggregate, typename Event>
-using project_result_type = decltype(Aggregate::project(std::declval<Event>()));
-
-template<typename Aggregate, typename Event>
-constexpr auto can_project = is_detected<project_result_type, Aggregate, Event>::value;
-
-// project :: () -> read_model -> event -> IO(read_model)
-template<typename Dispatcher, typename... Aggregates>
-constexpr auto
-project(Dispatcher&& dispatcher)
+template<typename T>
+const T& const_ref(T& ref)
 {
-  return [=](auto& read_model, auto& evt) {
-    // projectors :: evt -> [read_model -> IO(read_model)]
-    auto projectors = [](const auto& evt) {
-      // functions :: [evt -> (read_model -> IO(read_model))]
-      auto functions = std::make_tuple([agg = Aggregates{}](const auto& evt) {
-        if constexpr (can_project<decltype(agg), decltype(evt)>) {
-          return decltype(agg)::project(evt);
-        } else {
-          return [](auto&) { return 0; };
-        }
-      }...);
-      return tuple_invoke(std::move(functions), evt);
-    };
-    tuple_invoke(projectors(evt), read_model);
+    return const_cast<const T&>(ref);
+}
+} // namespace event_sauce::detail
+
+// TODO: For some reason unwrap() can't be in the 'detail' namespace
+template<typename Fn>
+void unwrap(const std::monostate&, Fn&&)
+{
+}
+
+template<typename Fn, typename...Ts>
+void unwrap(const std::variant<Ts...>& x, Fn&& fn)
+{
+  std::visit([&](const auto& x) { return unwrap(x, std::forward<Fn>(fn)); }, x);
+}
+
+template<typename Fn, typename T>
+void unwrap(const std::vector<T>& xs, Fn&& fn)
+{
+  for(const auto& x : xs) {
+    unwrap(x, std::forward<Fn>(fn));
+  }
+}
+
+template<typename Fn, typename T>
+void unwrap(const std::optional<T>& x, Fn&& fn)
+{
+  if(x) {
+    unwrap(x, std::forward<Fn>(fn));
+  }
+}
+
+template<typename Fn, typename...Ts>
+void unwrap(const std::tuple<Ts...>& xs, Fn&& fn)
+{
+    tuple_execute(xs, [&](const auto& x) { unwrap(x, std::forward<Fn>(fn)); });
+}
+
+template<typename Fn, typename T>
+void unwrap(const T& x, Fn&& fn)
+{
+  fn(x);
+}
+
+template<typename Fn>
+auto unwrapper(Fn&& fn)
+{
+  return [fn = std::forward<Fn>(fn)](const auto& x) mutable {
+    unwrap(x, std::forward<Fn>(fn));
   };
 }
-}
 
-// the context is the api endpoint that the user of the library interacts with
-template<typename ReadModel, typename... Aggregates>
-class context
+template<typename...Aggregates>
+struct context_type 
 {
-public:
-  //////////////////////////////////////////////////////////////////////////////
-  // DEFINITIONS
-  //////////////////////////////////////////////////////////////////////////////
-  using read_model_type = ReadModel;
-  using state_type = ::event_sauce::detail::state_type<Aggregates...>;
+  std::tuple<typename Aggregates::state_type...> state;
 
-  //////////////////////////////////////////////////////////////////////////////
-  // STATE
-  //////////////////////////////////////////////////////////////////////////////
-  read_model_type& read_model;
-  state_type state;
-  unsigned long long last_event_id;
-
-  //////////////////////////////////////////////////////////////////////////////
-  // CONSTRUCTORS
-  //////////////////////////////////////////////////////////////////////////////
-  context(read_model_type& read_model)
-      : read_model{ read_model }
-      , state{}
-      , last_event_id{ 0 }
-  {}
-
-  //////////////////////////////////////////////////////////////////////////////
-  // DISPATCH
-  //////////////////////////////////////////////////////////////////////////////
-  template<typename Dispatcher = detail::default_dispatcher_type>
-  void dispatch(const std::monostate&, Dispatcher&& = detail::default_dispatcher_type{})
-  {}
-
-  template<typename... Ts, typename Dispatcher = detail::default_dispatcher_type>
-  void dispatch(const std::variant<Ts...>& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    auto fn = [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, std::forward<Dispatcher>(dispatcher)); };
-    std::visit(std::move(fn), cmd);
-  }
-
-  template<typename... Ts, typename Dispatcher = detail::default_dispatcher_type>
-  void dispatch(const std::tuple<Ts...>& cmds, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    auto fn = [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, std::forward<Dispatcher>(dispatcher)); };
-    tuple_execute(cmds, std::move(fn));
-  }
-
-  template<typename T, typename Dispatcher = detail::default_dispatcher_type>
-  void dispatch(const std::vector<T>& cmds, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    auto fn = [this, &dispatcher](const auto& cmd) { this->dispatch(cmd, std::forward<Dispatcher>(dispatcher)); };
-    std::for_each(cbegin(cmds), cend(cmds), std::move(fn));
-  }
-
-  template<typename T, typename Dispatcher = detail::default_dispatcher_type>
-  void dispatch(const std::optional<T>& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    if (cmd) {
-      dispatch(*cmd, std::forward<Dispatcher>(dispatcher));
-    }
-  }
-
-  template<typename Command, typename Dispatcher = detail::default_dispatcher_type>
-  void dispatch(const Command& cmd, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    dispatcher.serial()([this, cmd, &dispatcher]() mutable {
-      const auto execute = detail::execute<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
-      const auto events = execute(state, cmd);
-      constexpr auto nof_events = detail::event_count(events);
-      static_assert(nof_events > 0, "Unhandled command");
-      static_assert(nof_events < 2, "Command handled more than once");
-      publish(events, std::forward<Dispatcher>(dispatcher));
-    });
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // PUBLISH
-  //////////////////////////////////////////////////////////////////////////////
-  template<typename Dispatcher>
-  void publish(const std::monostate&, Dispatcher&& = detail::default_dispatcher_type{})
-  {}
-
-  template<typename... Ts, typename Dispatcher>
-  void publish(const std::variant<Ts...>& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    auto fn = [this, &dispatcher](const auto& evt) { this->publish(evt, std::forward<Dispatcher>(dispatcher)); };
-    std::visit(std::move(fn), evt);
-  }
-
-  template<typename... Ts, typename Dispatcher>
-  void publish(const std::tuple<Ts...>& evts, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    auto fn = [this, &dispatcher](const auto& evt) { this->publish(evt, std::forward<Dispatcher>(dispatcher)); };
-    tuple_execute(evts, std::move(fn));
-  }
-
-  template<typename T, typename Dispatcher>
-  void publish(const std::vector<T>& evts, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    auto fn = [this, &dispatcher](const auto& evt) { this->publish(evt, std::forward<Dispatcher>(dispatcher)); };
-    std::for_each(cbegin(evts), cend(evts), std::move(fn));
-  }
-
-  template<typename T, typename Dispatcher>
-  void publish(const std::optional<T>& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    if (evt) {
-      publish(*evt, std::forward<Dispatcher>(dispatcher));
-    }
-  }
-
-  template<typename Event, typename Dispatcher>
-  void publish(const Event& evt, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
-  {
-    const auto apply = detail::apply<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
-    const auto project = detail::project<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
-    const auto process = detail::process<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher));
-
-    state = apply(state, evt);
-    ++last_event_id;
-    project(read_model, evt);
-    const auto commands = process(state, evt);
-    dispatch(commands, std::forward<Dispatcher>(dispatcher));
-  }
-
-//////////////////////////////////////////////////////////////////////////////
-// DEBUGGING
-//////////////////////////////////////////////////////////////////////////////
-#ifndef NDEBUG
+#ifndef NDEBUG    
   template<typename Aggregate>
-  typename Aggregate::state_type inspect() const
+  auto inspect() const 
   {
     return std::get<typename Aggregate::state_type>(state);
   }
 #endif
+};
+
+template<typename...Aggregates>
+auto make_context()
+{
+  return context_type<Aggregates...>{};
+}
+
+template<typename...Aggregates, typename Projector = detail::default_projector_type, typename Dispatcher = detail::default_dispatcher_type>
+auto publish(context_type<Aggregates...>& ctx, Projector&& projector = detail::default_projector_type{}, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
+{
+  using namespace detail;
+  return unwrapper([&](const auto& evt) mutable {
+    ctx.state = apply<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher))(ctx.state, evt);
+    projector(evt);
+    const auto commands = process<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher))(const_ref(ctx).state, evt);
+    dispatch(ctx, std::forward<Projector>(projector), std::forward<Dispatcher>(dispatcher))(commands);
+  });
+}
+
+template<typename...Aggregates, typename Projector = detail::default_projector_type, typename Dispatcher = detail::default_dispatcher_type>
+auto dispatch(context_type<Aggregates...>& ctx, Projector&& projector = detail::default_projector_type{}, Dispatcher&& dispatcher = detail::default_dispatcher_type{})
+{
+  using namespace detail;
+  return unwrapper([&](const auto& cmd) mutable {
+    dispatcher.serial()([&] {
+      const auto events = execute<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher))(const_ref(ctx).state, cmd);
+      publish(ctx, std::forward<Projector>(projector), std::forward<Dispatcher>(dispatcher))(events);
+    });
+  });
 };
 } // namespace event_sauce

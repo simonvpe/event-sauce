@@ -36,18 +36,27 @@ TEST_SUITE("simple event dispatching")
   {
     GIVEN("a counter context")
     {
-      auto model = Model{};
-      auto ctx = event_sauce::context<Model, Aggregate>(model);
+        auto ctx = event_sauce::make_context<Aggregate>();
       WHEN("dispatching a single increment command")
       {
-        ctx.dispatch(Aggregate::Increment{ 42 });
+        auto dispatch = event_sauce::dispatch(ctx);        
+        dispatch(Aggregate::Increment{ 42 });
         THEN("the state should change") { CHECK(ctx.inspect<Aggregate>().value == 42); }
       }
       WHEN("dispatching several increment commands")
       {
-        ctx.dispatch(Aggregate::Increment{ 25 });
-        ctx.dispatch(Aggregate::Increment{ 50 });
+        auto dispatch = event_sauce::dispatch(ctx);
+        dispatch(Aggregate::Increment{ 25 });
+        dispatch(Aggregate::Increment{ 50 });
         THEN("the resulting state should reflect the increments") { CHECK(ctx.inspect<Aggregate>().value == 75); }
+      }
+      WHEN("dispatching a single increment command")
+      {
+        auto counter = 0;
+        auto projector = [&](const Aggregate::Incremented& evt) { counter += evt.value; };
+        auto dispatch = event_sauce::dispatch(ctx, projector);
+        dispatch(Aggregate::Increment{100});
+        THEN("the projection should be called") { CHECK(counter == 100); }
       }
     }
   }
