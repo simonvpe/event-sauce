@@ -52,7 +52,7 @@ add_library(imgui
   vendor/imgui/examples/imgui_impl_opengl3.cpp
   vendor/imgui/examples/imgui_impl_glfw.cpp)
 target_include_directories(imgui PUBLIC vendor/imgui vendor/imgui/examples)
-target_link_libraries(imgui OpenGL::OpenGL glfw)
+target_link_libraries(imgui OpenGL::OpenGL glfw profiler)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 
 add_executable(engine main.cpp pool_dispatcher.cpp)
