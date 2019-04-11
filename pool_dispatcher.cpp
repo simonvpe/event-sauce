@@ -22,9 +22,9 @@ void
 pool_dispatcher::install_signal_handler(const std::vector<int>& signals, std::function<void()> callback)
 {
   std::for_each(signals.begin(), signals.end(), [&](int sig) { signal_set.add(sig); });
-  signal_set.async_wait([=](boost::system::error_code ec, int) {
+  signal_set.async_wait([callback, &serializer = this->serializer](boost::system::error_code ec, int) {
     if (!ec) {
-      callback();
+      boost::asio::post(serializer, std::move(callback));
     } else {
       throw std::runtime_error{ ec.message() };
     }

@@ -45,8 +45,18 @@ find_package(Threads REQUIRED)
 add_subdirectory(vendor)
 #add_subdirectory(opengl)
 
+add_library(imgui
+  vendor/imgui/imgui.cpp
+  vendor/imgui/imgui_draw.cpp
+  vendor/imgui/imgui_widgets.cpp
+  vendor/imgui/examples/imgui_impl_opengl3.cpp
+  vendor/imgui/examples/imgui_impl_glfw.cpp)
+target_include_directories(imgui PUBLIC vendor/imgui vendor/imgui/examples)
+target_link_libraries(imgui OpenGL::OpenGL glfw)
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
+
 add_executable(engine main.cpp pool_dispatcher.cpp)
-target_link_libraries(engine immer event-sauce OpenGL::OpenGL GLEW glfw Threads::Threads boost_system boost_thread)
+target_link_libraries(engine immer event-sauce imgui OpenGL::OpenGL GLEW glfw Threads::Threads boost_system boost_thread)
 set_target_properties(engine PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
 # add_executable(SFMLTest main.cpp)
 # target_link_libraries(SFMLTest immer event-sauce imgui-sfml)

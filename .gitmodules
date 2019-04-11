@@ -1,3 +1,6 @@
 [submodule "vendor/immer"]
 	path = vendor/immer
 	url = https://github.com/arximboldi/immer.git
+[submodule "vendor/imgui"]
+	path = vendor/imgui
+	url = https://github.com/ocornut/imgui.git
