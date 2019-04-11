@@ -5,6 +5,7 @@
 #include "processes/startup.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <boost/fiber/all.hpp>
 #include <event-sauce/event-sauce.hpp>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -181,7 +182,8 @@ struct test_gui
 
 struct event_logger
 {
-  struct state_type {};
+  struct state_type
+  {};
 
   template<typename T>
   static state_type apply(const state_type& state, const T& evt)
@@ -191,18 +193,72 @@ struct event_logger
   }
 };
 
+class fiber_scheduler
+{
+public:
+  using task_type = std::function<void()>;
+  using channel_type = boost::fibers::buffered_channel<task_type>;
+
+  fiber_scheduler(std::size_t serial_size, std::size_t concurrent_size)
+      : serial_channel{ serial_size }
+      , concurrent_channel{ concurrent_size }
+  {}
+
+  auto serial()
+  {
+    return [this](auto&& fn) { serial_channel.push(std::forward<decltype(fn)>(fn)); };
+  }
+
+  channel_type serial_channel;
+  channel_type concurrent_channel;
+};
+
+class fiber_worker
+{
+public:
+  fiber_worker(fiber_scheduler& scheduler, int concurrent_workers)
+      : scheduler{ scheduler }
+      , concurrent_workers{ concurrent_workers }
+  {}
+
+  auto run()
+  {
+    auto serial = boost::fibers::fiber([& channel = scheduler.serial_channel] {
+      fiber_scheduler::task_type task;
+      while (boost::fibers::channel_op_status::closed != channel.pop(task)) {
+        task();
+      }
+    });
+
+    auto concurrent = boost::fibers::fiber([& channel = scheduler.concurrent_channel] {
+      fiber_scheduler::task_type task;
+      while (boost::fibers::channel_op_status::closed != channel.pop(task)) {
+        task();
+      }
+    });
+
+    serial.join();
+    concurrent.join();
+  }
+
+private:
+  fiber_scheduler& scheduler;
+  int concurrent_workers;
+};
+
 int
 main()
 {
-  pool_dispatcher dispatcher{};
-  auto projector = opengl{};
-  auto ctx = event_sauce::make_context<startup, input, physics, rendering, test_gui, event_logger>();
-  auto dispatch = event_sauce::dispatch(ctx, projector, dispatcher);
+  fiber_scheduler scheduler{ 64, 64 };
+  auto main_thread = std::async(std::launch::async, [&scheduler] {
+    auto projector = opengl{};
+    auto ctx = event_sauce::make_context<startup, input, physics, rendering, test_gui, event_logger>();
+    auto dispatch = event_sauce::dispatch(ctx, projector, scheduler);
+    dispatch(startup::initiate{});
+    while (true) {
+    }
+  });
 
-  dispatcher.install_signal_handler({ SIGINT, SIGTERM }, [&] { dispatch(input::terminate{}); });
-
-  dispatch(startup::initiate{});
-
-  // dispatcher.join();
+  fiber_worker(scheduler, 8).run();
   return 0;
 }

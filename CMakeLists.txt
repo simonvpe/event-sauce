@@ -56,7 +56,7 @@ target_link_libraries(imgui OpenGL::OpenGL glfw profiler)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
 
 add_executable(engine main.cpp pool_dispatcher.cpp)
-target_link_libraries(engine immer event-sauce imgui OpenGL::OpenGL GLEW glfw Threads::Threads boost_system boost_thread)
+target_link_libraries(engine immer event-sauce imgui OpenGL::OpenGL GLEW glfw Threads::Threads boost_system boost_thread boost_fiber boost_coroutine boost_context)
 set_target_properties(engine PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
 # add_executable(SFMLTest main.cpp)
 # target_link_libraries(SFMLTest immer event-sauce imgui-sfml)
