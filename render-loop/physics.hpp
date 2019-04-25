@@ -3,6 +3,8 @@
 #include "input.hpp"
 #include <chrono>
 
+namespace render_loop {
+
 struct physics
 {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -57,7 +59,7 @@ struct physics
 
   static state_type apply(const state_type& state, const started& evt)
   {
-    std::cout << second_t{evt.time - state.time} << std::endl;
+    std::cout << second_t{ evt.time - state.time } << std::endl;
     return { evt.time, evt.time - state.time };
   }
 
@@ -75,3 +77,5 @@ struct physics
     return stop{};
   }
 };
+
+}
