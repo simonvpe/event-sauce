@@ -77,6 +77,115 @@ struct event_logger
   }
 };
 
+struct entity_gui
+{
+  struct draw
+  {};
+
+  struct create_entity_requested
+  {};
+
+  struct transform_entity_requested
+  {
+    physics::entity::id_type id;
+    glm::vec3 position;
+    glm::quat orientation;
+  };
+
+  struct entity_type
+  {
+    physics::entity::id_type id;
+    glm::vec3 position;
+    glm::quat orientation;
+  };
+
+  using state_type = immer::vector<entity_type>;
+
+  static auto execute(const state_type& state, const draw& cmd)
+    -> std::tuple<std::optional<create_entity_requested>, std::optional<transform_entity_requested>>
+  {
+    std::optional<create_entity_requested> create_entity_evt;
+    std::optional<transform_entity_requested> transform_entity_evt;
+    ImGui::Begin("Entity Editor");
+
+    if (ImGui::Button("Create")) {
+      create_entity_evt = create_entity_requested{};
+    }
+
+    for (const auto& entity : state) {
+      ImGui::PushID(&entity);
+      if (ImGui::TreeNode("Entity")) {
+        auto changed = false;
+        glm::vec3 position = entity.position;
+        glm::quat orientation = entity.orientation;
+
+        ImGui::PushID("Position");
+        ImGui::Text("Position");
+        changed |= ImGui::InputFloat("x", &position.x, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("y", &position.y, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("z", &position.z, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::Separator();
+        ImGui::PopID();
+
+        ImGui::PushID("Orientation");
+        ImGui::Text("Orientation");
+        changed |= ImGui::InputFloat("w", &orientation.w, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("x", &orientation.x, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("y", &orientation.y, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("z", &orientation.z, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::Separator();
+        ImGui::PopID();
+
+        ImGui::TreePop();
+
+        if (changed) {
+          transform_entity_evt = { entity.id, position, orientation };
+        }
+      }
+      ImGui::PopID();
+    }
+    ImGui::End();
+    return { create_entity_evt, transform_entity_evt };
+  }
+
+  static auto apply(const state_type& state, const physics::entity::created& evt) -> state_type
+  {
+    return state.push_back({ evt.id, evt.position, evt.orientation });
+  }
+
+  static state_type apply(const state_type& state, const physics::entity::transform_changed& evt)
+  {
+    auto i = 0;
+    for (const auto& entity : state) {
+      if (entity.id == evt.id) {
+        return state.update(i, [&](auto entity) {
+          entity.position = evt.position;
+          entity.orientation = evt.orientation;
+          return entity;
+        });
+      }
+      ++i;
+    }
+    return state;
+  }
+
+  static auto process(const state_type& state, const render_loop::rendering::started&) -> draw
+  {
+    return draw{};
+  }
+
+  static auto process(const state_type& state, const create_entity_requested&) -> physics::entity::create
+  {
+    static physics::entity::id_type next_id = 0;
+    return { next_id++ };
+  }
+
+  static auto process(const state_type& state, const transform_entity_requested& evt) -> physics::entity::transform
+  {
+    return { evt.id, evt.position, evt.orientation };
+  }
+};
+
 int
 main()
 {
@@ -87,8 +196,8 @@ main()
                                          render_loop::input,
                                          render_loop::physics,
                                          render_loop::rendering,
-                                         test_gui,
-                                         event_logger>();
+                                         physics::entity,
+                                         entity_gui>();
     auto dispatch = event_sauce::dispatch(ctx, projector, scheduler);
     dispatch(render_loop::startup::initiate{});
     while (true) {

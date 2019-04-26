@@ -260,7 +260,7 @@ dispatch(context_type<Aggregates...>& ctx,
 {
   using namespace detail;
   return unwrapper([&](const auto& cmd) mutable {
-    dispatcher.serial()([&] {
+    dispatcher.serial()([&, cmd] {
       const auto events =
         execute<Dispatcher, Aggregates...>(std::forward<Dispatcher>(dispatcher))(const_ref(ctx).state, cmd);
       publish(ctx, std::forward<Projector>(projector), std::forward<Dispatcher>(dispatcher))(events);
