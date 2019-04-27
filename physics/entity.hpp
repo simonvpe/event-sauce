@@ -66,7 +66,9 @@ struct entity
         return std::nullopt;
       }
     }
-    return { created{ cmd.id, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0, 0.0 } } };
+    auto origo = glm::vec3{};
+    auto unit_quaternion = glm::quat{};
+    return { created{ cmd.id, origo, unit_quaternion } };
   }
 
   static auto execute(const state_type& state, const transform& cmd) -> std::optional<transform_changed>

@@ -4,6 +4,7 @@
 #include "render-loop/startup.hpp"
 #include "scheduler/fiber.hpp"
 #include <event-sauce/event-sauce.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <iostream>
 
 struct test_gui
@@ -89,14 +90,14 @@ struct entity_gui
   {
     physics::entity::id_type id;
     glm::vec3 position;
-    glm::quat orientation;
+    glm::vec3 orientation;
   };
 
   struct entity_type
   {
     physics::entity::id_type id;
     glm::vec3 position;
-    glm::quat orientation;
+    glm::vec3 orientation; // Pitch, yaw, roll
   };
 
   using state_type = immer::vector<entity_type>;
@@ -117,7 +118,7 @@ struct entity_gui
       if (ImGui::TreeNode("Entity")) {
         auto changed = false;
         glm::vec3 position = entity.position;
-        glm::quat orientation = entity.orientation;
+        glm::vec3 orientation = entity.orientation;
 
         ImGui::PushID("Position");
         ImGui::Text("Position");
@@ -129,10 +130,9 @@ struct entity_gui
 
         ImGui::PushID("Orientation");
         ImGui::Text("Orientation");
-        changed |= ImGui::InputFloat("w", &orientation.w, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
-        changed |= ImGui::InputFloat("x", &orientation.x, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
-        changed |= ImGui::InputFloat("y", &orientation.y, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
-        changed |= ImGui::InputFloat("z", &orientation.z, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("pitch", &orientation.x, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("yaw", &orientation.y, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
+        changed |= ImGui::InputFloat("roll", &orientation.z, 0.0f, 0.0f, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue);
         ImGui::Separator();
         ImGui::PopID();
 
@@ -150,7 +150,8 @@ struct entity_gui
 
   static auto apply(const state_type& state, const physics::entity::created& evt) -> state_type
   {
-    return state.push_back({ evt.id, evt.position, evt.orientation });
+    auto orientation = glm::eulerAngles(evt.orientation) * 180.0f / 2.0f / glm::pi<float>();
+    return state.push_back({ evt.id, evt.position, std::move(orientation) });
   }
 
   static state_type apply(const state_type& state, const physics::entity::transform_changed& evt)
@@ -160,7 +161,7 @@ struct entity_gui
       if (entity.id == evt.id) {
         return state.update(i, [&](auto entity) {
           entity.position = evt.position;
-          entity.orientation = evt.orientation;
+          entity.orientation = glm::eulerAngles(evt.orientation) * 180.0f / 2.0f / glm::pi<float>();
           return entity;
         });
       }
@@ -182,7 +183,7 @@ struct entity_gui
 
   static auto process(const state_type& state, const transform_entity_requested& evt) -> physics::entity::transform
   {
-    return { evt.id, evt.position, evt.orientation };
+    return { evt.id, evt.position, evt.orientation * 2.0f * glm::pi<float>() / 180.0f };
   }
 };
 
