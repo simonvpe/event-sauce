@@ -3,6 +3,7 @@
 #include "../render-loop/input.hpp"
 #include "../render-loop/physics.hpp"
 #include "../render-loop/rendering.hpp"
+#include "utility/shader.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -73,12 +74,24 @@ destroy_window(GLFWwindow* window)
 class opengl
 {
   GLFWwindow* window;
+  GLuint vertex_array_id;
+  GLuint vertexbuffer;
+  GLuint programId;
+  GLfloat vertex_buffer_data[9] = { -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
 
 public:
   void operator()(const render_loop::startup::initiated& evt)
   {
     window = create_window(1024, 768, "My Window");
     imgui_configure(window);
+    ///
+    glGenVertexArrays(1, &vertex_array_id);
+    glBindVertexArray(vertex_array_id);
+    glGenBuffers(1, &vertexbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_buffer_data), vertex_buffer_data, GL_STATIC_DRAW);
+    programId = LoadShaders("../opengl/shader/tutorial-vertex.glsl", "../opengl/shader/tutorial-fragment.glsl");
+    ///
   }
 
   void operator()(const render_loop::input::terminated& evt)
@@ -98,7 +111,9 @@ public:
   }
 
   void operator()(const render_loop::rendering::started& evt)
-  {}
+  {
+
+  }
 
   void operator()(const render_loop::rendering::stopped& evt)
   {
@@ -109,6 +124,21 @@ public:
     glViewport(0, 0, width, height);
     glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
     glClear(GL_COLOR_BUFFER_BIT);
+    ///
+    glUseProgram(programId);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+    glVertexAttribPointer(0,        // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                          3,        // size
+                          GL_FLOAT, // type
+                          GL_FALSE, // normalized?
+                          0,        // stride
+                          (void*)0  // array buffer offset
+                          );
+    // Draw the triangle !
+    glDrawArrays(GL_TRIANGLES, 0, 3); // Starting from vertex 0; 3 vertices total -> 1 triangle
+    glDisableVertexAttribArray(0);
+    ///
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwMakeContextCurrent(window);
     glfwSwapBuffers(window);
