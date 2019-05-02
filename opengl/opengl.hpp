@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../mesh/cube.hpp"
 #include "../render-loop/input.hpp"
 #include "../render-loop/physics.hpp"
 #include "../render-loop/rendering.hpp"
@@ -111,9 +112,7 @@ public:
   }
 
   void operator()(const render_loop::rendering::started& evt)
-  {
-
-  }
+  {}
 
   void operator()(const render_loop::rendering::stopped& evt)
   {
@@ -134,7 +133,7 @@ public:
                           GL_FALSE, // normalized?
                           0,        // stride
                           (void*)0  // array buffer offset
-                          );
+    );
     // Draw the triangle !
     glDrawArrays(GL_TRIANGLES, 0, 3); // Starting from vertex 0; 3 vertices total -> 1 triangle
     glDisableVertexAttribArray(0);
