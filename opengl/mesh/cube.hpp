@@ -58,13 +58,18 @@ struct cube_data
 
 struct cube
 {
-  GLuint vao, program;
+  static constexpr GLuint N = 2;
+  GLuint program;
   const cube_data data;
-  glm::mat4 transform{1.0f};
+  GLuint vao;
+  glm::mat4 transform[N] = { glm::mat4{ 1.0f }, glm::mat4{ 1.0f } };
 
   void init()
   {
-    GLuint vbo, ibo, instance_vbo;
+    transform[1] = glm::translate(transform[1], glm::vec3{ 1.1f, 0.0f, 0.0f });
+    GLuint vbo, ibo;
+    GLuint instance_vbo;
+
     glEnable(GL_DEBUG_OUTPUT);
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
@@ -87,7 +92,7 @@ struct cube
     // Instance
     glGenBuffers(1, &instance_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(transform), &transform, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, N * sizeof(glm::mat4), &transform, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
@@ -115,7 +120,7 @@ struct cube
     glUniformMatrix4fv(glGetUniformLocation(program, "view_matrix"), 1, false, &view[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(program, "projection_matrix"), 1, false, &projection[0][0]);
     glBindVertexArray(vao);
-    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, 1);
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, N);
     glBindVertexArray(0);
   }
 };
