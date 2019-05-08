@@ -86,6 +86,11 @@ public:
     glDepthFunc(GL_LESS);
     imgui_configure(window);
     m_cube.init();
+    m_cube.push();
+    m_cube.transform(0, glm::translate(m_cube.transform(0), { 1.1f, 0.0f, 0.0f }));
+    m_cube.push();
+    m_cube.transform(1, glm::translate(m_cube.transform(1), { 0.0f, 1.1f, 0.0f }));
+    m_cube.push();
   }
 
   void operator()(const render_loop::input::terminated& evt)

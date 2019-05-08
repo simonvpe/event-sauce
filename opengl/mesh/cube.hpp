@@ -58,19 +58,17 @@ struct cube_data
 
 struct cube
 {
-  static constexpr GLuint N = 2;
   GLuint program;
   const cube_data data;
-  GLuint vao;
-  glm::mat4 transform[N] = { glm::mat4{ 1.0f }, glm::mat4{ 1.0f } };
+  GLuint vao, vbo, ibo, instance_vbo;
+  std::vector<glm::mat4> transforms;
 
   void init()
   {
-    transform[1] = glm::translate(transform[1], glm::vec3{ 1.1f, 0.0f, 0.0f });
-    GLuint vbo, ibo;
-    GLuint instance_vbo;
+    //transforms = { 2, glm::mat4{ 1.0f } };
+    program = LoadShaders("../opengl/shader/cube-vertex.glsl", "../opengl/shader/cube-fragment.glsl");
+    //transforms[1] = glm::translate(transforms[1], glm::vec3{ 1.1f, 0.0f, 0.0f });
 
-    glEnable(GL_DEBUG_OUTPUT);
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
@@ -83,16 +81,16 @@ struct cube
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(data.indices), data.indices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    // index -> length -> type -> normalized? -> stride -> offset
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(data.vertices[0]), (void*)0);
 
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(data.vertices[0]), (void*)(sizeof(glm::vec3)));
 
-    // Instance
     glGenBuffers(1, &instance_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-    glBufferData(GL_ARRAY_BUFFER, N * sizeof(glm::mat4), &transform, GL_STATIC_DRAW);
+    regenerate_buffers();
+    //glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+    //glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * transforms.size(), transforms.data(), GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
@@ -110,8 +108,33 @@ struct cube
 
     // Unbind
     glBindVertexArray(0);
+  }
 
-    program = LoadShaders("../opengl/shader/cube-vertex.glsl", "../opengl/shader/cube-fragment.glsl");
+  void push()
+  {
+    transforms.push_back(glm::mat4{ 1.0f });
+    regenerate_buffers();
+  }
+
+  void pop()
+  {
+    transforms.pop_back();
+    regenerate_buffers();
+  }
+
+  void transform(std::size_t idx, const glm::mat4& tfm)
+  {
+    transforms[idx] = tfm;
+  }
+
+  glm::mat4 transform(std::size_t idx) const
+  {
+    return transforms[idx];
+  }
+
+  void regenerate_buffers()
+  {
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * transforms.size(), transforms.data(), GL_STATIC_DRAW);
   }
 
   void render(const glm::mat4& projection, const glm::mat4& view)
@@ -120,7 +143,7 @@ struct cube
     glUniformMatrix4fv(glGetUniformLocation(program, "view_matrix"), 1, false, &view[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(program, "projection_matrix"), 1, false, &projection[0][0]);
     glBindVertexArray(vao);
-    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, N);
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, transforms.size());
     glBindVertexArray(0);
   }
 };
