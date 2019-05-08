@@ -84,11 +84,8 @@ struct cube
     program = LoadShaders("../opengl/shader/cube-vertex.glsl", "../opengl/shader/cube-fragment.glsl");
   }
 
-  void render()
+  void render(const glm::mat4& projection, const glm::mat4& view)
   {
-    const auto projection = glm::perspective(glm::radians(45.0f), 1024.0f / 768.0f, 0.1f, 100.0f);
-    const auto view = glm::lookAt(glm::vec3(4, 3, 3), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-
     rotation = rotation + glm::vec3(0.1f, 0.0f, 0.0f);
     glm::vec3 rotation_sin = glm::vec3(rotation.x * glm::pi<float>() / 180.0,
                                        rotation.y * glm::pi<float>() / 180.0,

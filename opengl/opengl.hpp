@@ -81,6 +81,8 @@ public:
   void operator()(const render_loop::startup::initiated& evt)
   {
     window = create_window(1024, 768, "My Window");
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
     imgui_configure(window);
     m_cube.init();
   }
@@ -112,9 +114,13 @@ public:
     glfwGetFramebufferSize(window, &width, &height);
     glViewport(0, 0, width, height);
     glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    m_cube.render();
+    const auto perspective = (float)width / (float)height;
+    const auto projection = glm::perspective(glm::radians(45.0f), perspective, 0.1f, 100.0f);
+    const auto view = glm::lookAt(glm::vec3(4, 3, 3), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+
+    m_cube.render(projection, view);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwMakeContextCurrent(window);
