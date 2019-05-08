@@ -89,8 +89,6 @@ struct cube
     glGenBuffers(1, &instance_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
     regenerate_buffers();
-    //glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-    //glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * transforms.size(), transforms.data(), GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
@@ -125,6 +123,7 @@ struct cube
   void transform(std::size_t idx, const glm::mat4& tfm)
   {
     transforms[idx] = tfm;
+    glBufferSubData(instance_vbo, idx * sizeof(glm::mat4), sizeof(glm::mat4), &tfm);
   }
 
   glm::mat4 transform(std::size_t idx) const
@@ -134,7 +133,7 @@ struct cube
 
   void regenerate_buffers()
   {
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * transforms.size(), transforms.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4) * transforms.size(), transforms.data(), GL_DYNAMIC_DRAW);
   }
 
   void render(const glm::mat4& projection, const glm::mat4& view)
