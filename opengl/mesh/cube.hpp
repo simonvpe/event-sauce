@@ -58,12 +58,14 @@ struct cube_data
 
 struct cube
 {
+  GLuint vao, program;
   const cube_data data;
-  GLuint vao, vbo, ibo, program;
-  glm::vec3 rotation;
+  glm::mat4 transform{1.0f};
 
   void init()
   {
+    GLuint vbo, ibo, instance_vbo;
+    glEnable(GL_DEBUG_OUTPUT);
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
 
@@ -76,9 +78,32 @@ struct cube
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(data.indices), data.indices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(data.vertices) / 24, (void*)0);
+    // index -> length -> type -> normalized? -> stride -> offset
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(data.vertices[0]), (void*)0);
+
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(data.vertices) / 24, (void*)(sizeof(glm::vec3)));
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(data.vertices[0]), (void*)(sizeof(glm::vec3)));
+
+    // Instance
+    glGenBuffers(1, &instance_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(transform), &transform, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)0);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(sizeof(glm::vec4)));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(2 * sizeof(glm::vec4)));
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4), (void*)(3 * sizeof(glm::vec4)));
+
+    glVertexAttribDivisor(2, 1);
+    glVertexAttribDivisor(3, 1);
+    glVertexAttribDivisor(4, 1);
+    glVertexAttribDivisor(5, 1);
+
+    // Unbind
     glBindVertexArray(0);
 
     program = LoadShaders("../opengl/shader/cube-vertex.glsl", "../opengl/shader/cube-fragment.glsl");
@@ -86,15 +111,11 @@ struct cube
 
   void render(const glm::mat4& projection, const glm::mat4& view)
   {
-    rotation = rotation + glm::vec3(0.1f, 0.0f, 0.0f);
-    glm::vec3 rotation_sin = glm::vec3(rotation.x * glm::pi<float>() / 180.0,
-                                       rotation.y * glm::pi<float>() / 180.0,
-                                       rotation.z * glm::pi<float>() / 180.0);
     glUseProgram(program);
-    glUniform3f(glGetUniformLocation(program, "rotation"), rotation_sin.x, rotation_sin.y, rotation_sin.z);
     glUniformMatrix4fv(glGetUniformLocation(program, "view_matrix"), 1, false, &view[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(program, "projection_matrix"), 1, false, &projection[0][0]);
     glBindVertexArray(vao);
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, 1);
+    glBindVertexArray(0);
   }
 };
